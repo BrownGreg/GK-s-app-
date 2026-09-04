@@ -21,13 +21,15 @@ export function Entete({ phrase, onEditPhrase, avatarUrl, onOuvrirProfil }) {
   return (
     <header className="header">
       {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
-      <button
-        className="header__phrase"
-        onClick={onEditPhrase}
-        title={t('phrase_modifier')}
-      >
-        {phrase || t('phrase_defaut')}
-      </button>
+      {onEditPhrase && (
+        <button
+          className="header__phrase"
+          onClick={onEditPhrase}
+          title={t('phrase_modifier')}
+        >
+          {phrase || t('phrase_defaut')}
+        </button>
+      )}
       <div className="header__rule">
         <span /> <IconeCoeur /> <span />
       </div>

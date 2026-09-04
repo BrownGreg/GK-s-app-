@@ -122,7 +122,6 @@ const TEXTES = {
     rejoindre: 'Rejoindre',
     creer_notre_espace: 'Créer notre espace',
     erreur_generique: 'Une erreur est survenue.',
-    a_deux_cest_mieux: 'À deux, c’est mieux',
 
     profil_introuvable: 'Profil introuvable.',
     synchro_impossible: 'Synchro impossible. Les dernières données connues sont affichées.',
@@ -261,7 +260,6 @@ const TEXTES = {
     rejoindre: 'Join',
     creer_notre_espace: 'Create our space',
     erreur_generique: 'Something went wrong.',
-    a_deux_cest_mieux: 'Better together',
 
     profil_introuvable: 'Profile not found.',
     synchro_impossible: "Sync failed. Showing the last known data.",

@@ -115,10 +115,9 @@ export default function ConnexionEcran({ profil, onPret }) {
 }
 
 function Coquille({ children }) {
-  const { t } = useLangue()
   return (
     <div className="gate">
-      <Entete phrase={t('a_deux_cest_mieux')} onEditPhrase={() => {}} />
+      <Entete />
       {children}
     </div>
   )
