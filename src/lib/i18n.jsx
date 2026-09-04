@@ -1,0 +1,315 @@
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+
+const TEXTES = {
+  fr: {
+    phrase_defaut: 'Notre phrase à nous',
+    phrase_modifier: 'Modifier notre phrase',
+    votre_profil: 'Votre profil',
+
+    onglet_carte: 'Carte',
+    onglet_liste: 'Liste',
+    onglet_afaire: 'À faire',
+    onglet_wishlist: 'Wishlist',
+    onglet_requests: 'Requests',
+
+    type_lieu: 'Lieu',
+    type_activite: 'Activité',
+    type_resto: 'Resto',
+    type_cafe: 'Café',
+    type_bar: 'Bar',
+    type_nourriture: 'Nourriture',
+    type_media: 'Média',
+    type_objet: 'Objet',
+    type_autre: 'Autre',
+
+    statut_fait: 'fait',
+    statut_afaire: 'à faire',
+
+    filtre_tous: 'Tous',
+    filtre_afaire: 'À faire',
+    filtre_faits: 'Faits',
+    filtrer_aria: 'Filtrer nos envies',
+    vide_faits_titre: 'Rien de coché pour l’instant',
+    vide_faits_texte: 'Vos souvenirs apparaîtront ici au fur et à mesure.',
+    vide_liste_titre: 'La liste est vide',
+    vide_liste_texte: 'Ajoutez une première envie depuis la carte, avec le bouton +.',
+
+    afaire_titre: 'À faire',
+    afaire_tout_coche: 'Tout est coché.',
+    afaire_attente_singulier: '{n} envie en attente',
+    afaire_attente_pluriel: '{n} envies en attente',
+    afaire_vide_titre: 'Plus rien en attente',
+    afaire_vide_texte: 'Ajoutez une envie depuis la carte pour relancer la machine.',
+    prochainement: 'Prochainement',
+
+    wishlist_titre: 'Wishlist',
+    wishlist_vide_titre: 'Rien pour l’instant',
+    wishlist_vide_texte: 'Un plat, une série, un objet à s’offrir — ajoutez votre première envie avec le bouton +.',
+    nouveau_souhait: 'Un nouveau souhait',
+
+    requests_titre: 'Requests',
+    requests_vide_titre: 'Aucune demande',
+    requests_vide_texte: 'Demandez quelque chose à votre partenaire avec le bouton +.',
+    nouvelle_requete: 'Une nouvelle demande',
+    requete_placeholder: 'Peux-tu…',
+    demande_par_vous: 'Demandé par vous',
+    demande_par: 'Demandé par {prenom}',
+    ajouter_todo: 'Ajouter à la to-do',
+    ajoutee_todo: 'Ajoutée à la to-do ✓',
+    supprimer_requete: 'Supprimer cette demande',
+    requete_manquante: 'Écris ta demande.',
+    envoyer_requete: 'Envoyer la demande',
+
+    chercher_lieu: 'Chercher un lieu…',
+    ajouter_envie_aria: 'Ajouter une envie',
+    chargement_carte: 'Chargement de la carte…',
+    chercher_adresse: 'Chercher une adresse…',
+
+    remettre_envies: 'Remettre dans les envies',
+    cest_fait: "C'est fait",
+    prevue_pour: 'Prévue pour',
+    jusquau: "Jusqu'au",
+    ajouter_date_fin: 'Ajouter une date de fin',
+    retirer_date_fin: 'Retirer la date de fin',
+    ajouter_calendrier: 'Ajouter au calendrier du téléphone (.ics)',
+    souvenir_placeholder: "Ce qu'on veut se rappeler de ce moment…",
+    pas_encore_avis: "Pas encore d'avis.",
+    photos: 'Photos',
+    supprimer_photo_aria: 'Supprimer cette photo',
+    fait_le: 'Fait le {date}',
+    supprimer_envie: 'Supprimer cette envie',
+    photo_erreur: "La photo n'a pas pu être ajoutée.",
+    etoile_singulier: '{n} étoile',
+    etoile_pluriel: '{n} étoiles',
+
+    nouvelle_envie: 'Une nouvelle envie',
+    titre_champ: 'Titre',
+    titre_placeholder: "Nom de l'envie",
+    deux_mots: 'En deux mots',
+    deux_mots_placeholder: 'Une courte description',
+    type_champ: 'Type',
+    etiquettes: 'Étiquettes',
+    nouvelle_etiquette_placeholder: 'Nouvelle étiquette…',
+    ajouter_etiquette_aria: 'Ajouter une étiquette',
+    lieu_champ: 'Lieu — facultatif, une envie peut se vivre à la maison',
+    retirer: 'retirer',
+    titre_manquant: 'Donne un titre à cette envie.',
+    ajouter_envies: 'Ajouter à nos envies',
+    annuler: 'Annuler',
+
+    photo_erreur_profil: "La photo n'a pas pu être enregistrée.",
+    statut: 'Statut',
+    relie_a: 'Relié·e à {prenom} — tout est partagé entre vous. 💛',
+    en_attente_moitie: 'En attente de votre partenaire : partagez le code ci-dessous pour vous relier.',
+    copier_code: 'Copier le code',
+    copie: 'Copié !',
+    partage_non_actif: "Le partage à deux n'est pas activé (voir le README pour configurer Supabase).",
+    fermer: 'Fermer',
+    langue: 'Langue',
+
+    gate_local: "Cette app tourne pour l'instant sur cet appareil uniquement. Renseignez Supabase pour la partager à deux.",
+    votre_prenom: 'Votre prénom',
+    commencer: 'Commencer',
+    prenom_manquant: 'Il me faut au moins un prénom.',
+    gate_email: 'On vous envoie un lien de connexion par email. Pas de mot de passe à retenir.',
+    email_placeholder: 'votre@email.fr',
+    email_invalide: 'Cette adresse email ne semble pas valide.',
+    recevoir_lien: 'Recevoir le lien',
+    envoi: 'Envoi…',
+    lien_envoye: 'Lien envoyé à {email}. Ouvrez-le depuis ce téléphone pour revenir ici connecté.',
+    creer_espace: 'Créez votre espace à deux, ou rejoignez celui que votre partenaire a déjà ouvert.',
+    code_recu: 'Code reçu (facultatif)',
+    rejoindre: 'Rejoindre',
+    creer_notre_espace: 'Créer notre espace',
+    erreur_generique: 'Une erreur est survenue.',
+    a_deux_cest_mieux: 'À deux, c’est mieux',
+
+    profil_introuvable: 'Profil introuvable.',
+    synchro_impossible: 'Synchro impossible. Les dernières données connues sont affichées.',
+    envie_ajoutee: 'Envie ajoutée.',
+    envie_erreur: "L'envie n'a pas pu être enregistrée.",
+    modif_non_enregistree: 'Modification non enregistrée.',
+    suppr_non_enregistree: 'Suppression non enregistrée.',
+    suppr_photo_non_enregistree: 'Suppression de la photo non enregistrée.',
+    phrase_non_enregistree: 'Phrase non enregistrée.',
+    prenom_non_enregistre: 'Prénom non enregistré.',
+    phrase_prompt: 'Notre phrase à nous',
+    un_instant: 'Un instant…',
+
+    code_invalide: 'Ce code ne correspond à aucun couple.',
+    recherche_indisponible: 'Recherche indisponible.'
+  },
+
+  en: {
+    phrase_defaut: 'Our little phrase',
+    phrase_modifier: 'Edit our phrase',
+    votre_profil: 'Your profile',
+
+    onglet_carte: 'Map',
+    onglet_liste: 'List',
+    onglet_afaire: 'To-do',
+    onglet_wishlist: 'Wishlist',
+    onglet_requests: 'Requests',
+
+    type_lieu: 'Place',
+    type_activite: 'Activity',
+    type_resto: 'Restaurant',
+    type_cafe: 'Café',
+    type_bar: 'Bar',
+    type_nourriture: 'Food',
+    type_media: 'Media',
+    type_objet: 'Item',
+    type_autre: 'Other',
+
+    statut_fait: 'done',
+    statut_afaire: 'to do',
+
+    filtre_tous: 'All',
+    filtre_afaire: 'To do',
+    filtre_faits: 'Done',
+    filtrer_aria: 'Filter our wishes',
+    vide_faits_titre: 'Nothing checked off yet',
+    vide_faits_texte: 'Your memories will show up here as you go.',
+    vide_liste_titre: 'The list is empty',
+    vide_liste_texte: 'Add a first wish from the map, with the + button.',
+
+    afaire_titre: 'To do',
+    afaire_tout_coche: 'All done.',
+    afaire_attente_singulier: '{n} wish pending',
+    afaire_attente_pluriel: '{n} wishes pending',
+    afaire_vide_titre: 'Nothing pending',
+    afaire_vide_texte: 'Add a wish from the map to get things going again.',
+    prochainement: 'Coming up',
+
+    wishlist_titre: 'Wishlist',
+    wishlist_vide_titre: 'Nothing yet',
+    wishlist_vide_texte: 'A dish, a show, something to treat yourself to — add your first wish with the + button.',
+    nouveau_souhait: 'A new wish',
+
+    requests_titre: 'Requests',
+    requests_vide_titre: 'No requests',
+    requests_vide_texte: 'Ask your partner for something with the + button.',
+    nouvelle_requete: 'A new request',
+    requete_placeholder: 'Can you…',
+    demande_par_vous: 'Requested by you',
+    demande_par: 'Requested by {prenom}',
+    ajouter_todo: 'Add to to-do',
+    ajoutee_todo: 'Added to to-do ✓',
+    supprimer_requete: 'Delete this request',
+    requete_manquante: 'Write your request.',
+    envoyer_requete: 'Send the request',
+
+    chercher_lieu: 'Search a place…',
+    ajouter_envie_aria: 'Add a wish',
+    chargement_carte: 'Loading the map…',
+    chercher_adresse: 'Search an address…',
+
+    remettre_envies: 'Move back to wishes',
+    cest_fait: 'Done!',
+    prevue_pour: 'Planned for',
+    jusquau: 'Until',
+    ajouter_date_fin: 'Add an end date',
+    retirer_date_fin: 'Remove the end date',
+    ajouter_calendrier: 'Add to phone calendar (.ics)',
+    souvenir_placeholder: 'What we want to remember about this moment…',
+    pas_encore_avis: 'No review yet.',
+    photos: 'Photos',
+    supprimer_photo_aria: 'Delete this photo',
+    fait_le: 'Done on {date}',
+    supprimer_envie: 'Delete this wish',
+    photo_erreur: "The photo couldn't be added.",
+    etoile_singulier: '{n} star',
+    etoile_pluriel: '{n} stars',
+
+    nouvelle_envie: 'A new wish',
+    titre_champ: 'Title',
+    titre_placeholder: 'Name of the wish',
+    deux_mots: 'In a few words',
+    deux_mots_placeholder: 'A short description',
+    type_champ: 'Type',
+    etiquettes: 'Tags',
+    nouvelle_etiquette_placeholder: 'New tag…',
+    ajouter_etiquette_aria: 'Add a tag',
+    lieu_champ: 'Place — optional, a wish can happen at home',
+    retirer: 'remove',
+    titre_manquant: 'Give this wish a title.',
+    ajouter_envies: 'Add to our wishes',
+    annuler: 'Cancel',
+
+    photo_erreur_profil: "The photo couldn't be saved.",
+    statut: 'Status',
+    relie_a: 'Linked with {prenom} — everything is shared between you. 💛',
+    en_attente_moitie: 'Waiting for your partner: share the code below to link up.',
+    copier_code: 'Copy the code',
+    copie: 'Copied!',
+    partage_non_actif: 'Sharing is not enabled (see the README to set up Supabase).',
+    fermer: 'Close',
+    langue: 'Language',
+
+    gate_local: 'This app currently runs on this device only. Set up Supabase to share it as a couple.',
+    votre_prenom: 'Your first name',
+    commencer: 'Start',
+    prenom_manquant: 'I need at least a first name.',
+    gate_email: 'We’ll send you a sign-in link by email. No password to remember.',
+    email_placeholder: 'you@email.com',
+    email_invalide: "This email address doesn't look valid.",
+    recevoir_lien: 'Get the link',
+    envoi: 'Sending…',
+    lien_envoye: 'Link sent to {email}. Open it from this phone to come back here signed in.',
+    creer_espace: 'Create your shared space, or join the one your partner already opened.',
+    code_recu: 'Code received (optional)',
+    rejoindre: 'Join',
+    creer_notre_espace: 'Create our space',
+    erreur_generique: 'Something went wrong.',
+    a_deux_cest_mieux: 'Better together',
+
+    profil_introuvable: 'Profile not found.',
+    synchro_impossible: "Sync failed. Showing the last known data.",
+    envie_ajoutee: 'Wish added.',
+    envie_erreur: "The wish couldn't be saved.",
+    modif_non_enregistree: 'Change not saved.',
+    suppr_non_enregistree: 'Deletion not saved.',
+    suppr_photo_non_enregistree: 'Photo deletion not saved.',
+    phrase_non_enregistree: 'Phrase not saved.',
+    prenom_non_enregistre: 'First name not saved.',
+    phrase_prompt: 'Our little phrase',
+    un_instant: 'One moment…',
+
+    code_invalide: "This code doesn't match any couple.",
+    recherche_indisponible: 'Search unavailable.'
+  }
+}
+
+const LangueContext = createContext(null)
+
+function traduire(langue, cle, vars) {
+  let texte = TEXTES[langue]?.[cle] ?? TEXTES.fr[cle] ?? cle
+  if (vars) {
+    for (const [k, v] of Object.entries(vars)) texte = texte.replaceAll(`{${k}}`, v)
+  }
+  return texte
+}
+
+export function LangueProvider({ children }) {
+  const [langue, setLangue] = useState(() => {
+    const sauvee = localStorage.getItem('envies:langue')
+    if (sauvee === 'fr' || sauvee === 'en') return sauvee
+    return navigator.language?.toLowerCase().startsWith('fr') ? 'fr' : 'en'
+  })
+
+  useEffect(() => { localStorage.setItem('envies:langue', langue) }, [langue])
+
+  const valeur = useMemo(() => ({
+    langue,
+    changerLangue: setLangue,
+    t: (cle, vars) => traduire(langue, cle, vars),
+    // Choisit la clé singulier/pluriel selon n, puis traduit avec {n} injecté.
+    tn: (base, n, vars) => traduire(langue, `${base}_${Math.abs(n) > 1 ? 'pluriel' : 'singulier'}`, { n, ...vars })
+  }), [langue])
+
+  return <LangueContext.Provider value={valeur}>{children}</LangueContext.Provider>
+}
+
+export function useLangue() {
+  return useContext(LangueContext)
+}
