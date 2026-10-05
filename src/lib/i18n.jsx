@@ -5,6 +5,9 @@ const TEXTES = {
     phrase_defaut: 'Notre phrase à nous',
     phrase_modifier: 'Modifier notre phrase',
     votre_profil: 'Votre profil',
+    humeur_titre: 'Humeur du jour',
+    humeur_partenaire: 'Humeur de {prenom}',
+    humeur_aucune: 'Pas encore d’humeur aujourd’hui.',
 
     onglet_carte: 'Carte',
     onglet_liste: 'Liste',
@@ -41,6 +44,10 @@ const TEXTES = {
     afaire_vide_titre: 'Plus rien en attente',
     afaire_vide_texte: 'Ajoutez une envie depuis la carte pour relancer la machine.',
     prochainement: 'Prochainement',
+    sans_date: 'Sans date',
+    trier_aria: 'Trier la liste',
+    trier_date: 'Date',
+    trier_type: 'Type',
 
     wishlist_titre: 'Wishlist',
     wishlist_vide_titre: 'Rien pour l’instant',
@@ -143,6 +150,9 @@ const TEXTES = {
     phrase_defaut: 'Our little phrase',
     phrase_modifier: 'Edit our phrase',
     votre_profil: 'Your profile',
+    humeur_titre: 'Mood of the day',
+    humeur_partenaire: '{prenom}’s mood',
+    humeur_aucune: 'No mood set today yet.',
 
     onglet_carte: 'Map',
     onglet_liste: 'List',
@@ -179,6 +189,10 @@ const TEXTES = {
     afaire_vide_titre: 'Nothing pending',
     afaire_vide_texte: 'Add a wish from the map to get things going again.',
     prochainement: 'Coming up',
+    sans_date: 'No date',
+    trier_aria: 'Sort the list',
+    trier_date: 'Date',
+    trier_type: 'Type',
 
     wishlist_titre: 'Wishlist',
     wishlist_vide_titre: 'Nothing yet',

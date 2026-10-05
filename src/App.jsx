@@ -190,6 +190,12 @@ export default function App() {
     try { await store.majPrenom(prenom) } catch { signaler(t('prenom_non_enregistre')) }
   }
 
+  const editerHumeur = async (humeur) => {
+    const humeur_le = new Date().toISOString().slice(0, 10)
+    setProfil((p) => ({ ...p, humeur, humeur_le }))
+    try { await store.majHumeur(humeur) } catch { /* pas critique, on retentera au prochain changement */ }
+  }
+
   /* ---------- Rendu ---------- */
 
   if (chargement) return <div className="gate"><p>{t('un_instant')}</p></div>
@@ -289,6 +295,7 @@ export default function App() {
           onFermer={() => setProfilOuvert(false)}
           onAvatar={editerAvatar}
           onPrenom={editerPrenom}
+          onHumeur={editerHumeur}
         />
       )}
 

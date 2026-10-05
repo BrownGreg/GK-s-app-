@@ -276,6 +276,7 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
   const [lieu, setLieu] = useState(lieuInitial || null)
   const [requete, setRequete] = useState('')
   const [resultats, setResultats] = useState([])
+  const [datePrevue, setDatePrevue] = useState('')
   const [erreur, setErreur] = useState('')
 
   useEffect(() => {
@@ -307,7 +308,7 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
       avis: {},
       photos: [],
       date_faite: null,
-      date_prevue: null,
+      date_prevue: datePrevue ? new Date(datePrevue).toISOString() : null,
       date_fin: null,
       lat: lieu?.lat ?? null,
       lng: lieu?.lng ?? null,
@@ -349,6 +350,17 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
           ))}
         </div>
       </div>
+
+      {!wishlist && (
+        <div className="field">
+          <label>{t('prevue_pour')}</label>
+          <input
+            type="datetime-local"
+            value={datePrevue}
+            onChange={(e) => setDatePrevue(e.target.value)}
+          />
+        </div>
+      )}
 
       <div className="field">
         <label>{t('etiquettes')}</label>
@@ -446,11 +458,17 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
 /* Profil : photo, code d'invitation, statut d'appairage.               */
 /* ------------------------------------------------------------------ */
 
-export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom }) {
+const HUMEURS = ['😊', '😍', '😌', '😴', '🤒', '😤', '😢', '🥳']
+
+export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur }) {
   const { t, langue, changerLangue } = useLangue()
   const [envoi, setEnvoi] = useState(false)
   const [erreur, setErreur] = useState('')
   const [copie, setCopie] = useState(false)
+
+  const aujourdhui = new Date().toISOString().slice(0, 10)
+  const monHumeur = profil.humeur_le === aujourdhui ? profil.humeur : null
+  const humeurPartenaire = partenaire?.humeur_le === aujourdhui ? partenaire.humeur : null
 
   const editerPrenom = () => {
     const prenom = window.prompt(t('votre_prenom'), profil.prenom || '')
@@ -505,6 +523,22 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
         <button aria-pressed={langue === 'en'} onClick={() => changerLangue('en')}>EN</button>
       </div>
 
+      <div className="field">
+        <label>{t('humeur_titre')}</label>
+        <div className="humeurs">
+          {HUMEURS.map((h) => (
+            <button
+              key={h}
+              className={h === monHumeur ? 'on' : ''}
+              aria-pressed={h === monHumeur}
+              onClick={() => onHumeur(h)}
+            >
+              {h}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {isRemote ? (
         <>
           <div className="field" style={{ marginTop: 8 }}>
@@ -519,6 +553,15 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
               </p>
             )}
           </div>
+
+          {partenaire && (
+            <div className="field" style={{ marginTop: -4 }}>
+              <label>{t('humeur_partenaire', { prenom: partenaire.prenom })}</label>
+              <p className="meta" style={{ marginBottom: 0, fontSize: 26 }}>
+                {humeurPartenaire || <span style={{ fontSize: 13 }}>{t('humeur_aucune')}</span>}
+              </p>
+            </div>
+          )}
 
           {!partenaire && (
             <>

@@ -62,6 +62,14 @@ const localStore = {
     const profil = LS.read('envies:profil', null)
     if (profil) { profil.prenom = prenom; LS.write('envies:profil', profil) }
   },
+  async majHumeur(humeur) {
+    const profil = LS.read('envies:profil', null)
+    if (profil) {
+      profil.humeur = humeur
+      profil.humeur_le = new Date().toISOString().slice(0, 10)
+      LS.write('envies:profil', profil)
+    }
+  },
   async partenaire() { return null },
   async lister() {
     return LS.read('envies:items', []).sort(trierItems)
@@ -130,7 +138,7 @@ const remoteStore = {
     if (!user) return null
     const { data, error } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, couple_id, couples(code_invitation, phrase_perso)')
+      .select('id, prenom, avatar_url, humeur, humeur_le, couple_id, couples(code_invitation, phrase_perso)')
       .eq('id', user.id)
       .maybeSingle()
     if (error) throw error
@@ -139,6 +147,8 @@ const remoteStore = {
       id: data.id,
       prenom: data.prenom,
       avatar_url: data.avatar_url || '',
+      humeur: data.humeur || '',
+      humeur_le: data.humeur_le,
       couple_id: data.couple_id,
       code_invitation: data.couples?.code_invitation,
       phrase_perso: data.couples?.phrase_perso || ''
@@ -149,7 +159,7 @@ const remoteStore = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url')
+      .select('id, prenom, avatar_url, humeur, humeur_le')
       .eq('couple_id', coupleId)
       .neq('id', user.id)
       .maybeSingle()
@@ -213,6 +223,14 @@ const remoteStore = {
   async majPrenom(prenom) {
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('profils').update({ prenom }).eq('id', user.id)
+  },
+
+  async majHumeur(humeur) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase
+      .from('profils')
+      .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10) })
+      .eq('id', user.id)
   },
 
   async lister() {

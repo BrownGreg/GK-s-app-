@@ -462,6 +462,10 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 .stars-input button { color: inherit; line-height: 1; }
 .stars-input button.on { color: var(--gold); }
 
+.humeurs { display: flex; gap: 6px; flex-wrap: wrap; font-size: 26px; }
+.humeurs button { line-height: 1; padding: 4px; opacity: 0.4; transition: opacity 120ms ease, transform 120ms ease; }
+.humeurs button.on { opacity: 1; transform: scale(1.18); }
+
 .avis { display: flex; gap: 12px; margin-bottom: 20px; }
 .avis__avatar {
   width: 42px;

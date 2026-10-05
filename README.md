@@ -27,6 +27,21 @@ VITE_SUPABASE_ANON_KEY=eyJ...
 4. Relancer `npm run dev`. La connexion se fait par lien envoyé par email, sans mot de passe.
 5. La première personne crée l'espace et récupère un code à 6 caractères. La seconde saisit ce code à l'inscription. À partir de là, tout est commun et se synchronise en direct.
 
+### Se connecter sans attendre l'email (dev uniquement)
+
+Le service d'email intégré de Supabase limite le nombre de liens envoyés par heure — gênant en phase de test. Pour l'éviter :
+
+1. Dans Supabase → *Project Settings → API*, copier la clé **service_role** (différente de la clé publique) et l'ajouter à `.env` :
+   ```
+   SUPABASE_SERVICE_ROLE_KEY=eyJ...
+   ```
+   Cette clé a accès à tout sans restriction : elle ne doit **jamais** être utilisée côté client, jamais préfixée `VITE_`, jamais commitée (`.env` est déjà ignoré par git).
+2. Lancer :
+   ```bash
+   npm run lien-dev -- vous@email.fr
+   ```
+3. Ouvrir le lien affiché dans le navigateur où tourne `npm run dev` — connexion immédiate, sans email, sans limite.
+
 ## Mettre en ligne et installer sur les téléphones
 
 ```bash
