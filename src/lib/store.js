@@ -19,6 +19,13 @@ export const TYPES = {
 export const TYPES_SORTIE = ['lieu', 'activite', 'resto', 'cafe', 'bar']
 export const TYPES_SOUHAIT = ['nourriture', 'media', 'objet', 'autre']
 
+// Moyenne des notes laissées par chacun — non arrondie, pour trier correctement
+// (arrondir seulement à l'affichage des étoiles).
+export function moyenneNote(item) {
+  const notes = Object.values(item.avis || {}).map((a) => a.note).filter(Boolean)
+  return notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : 0
+}
+
 export const TAGS_SUGGERES = [
   'musée', 'bar', 'café', 'balade', 'cuisine maison', 'soirée maison', 'concert',
   'cinéma', 'sport', 'brunch', 'week-end', 'voyage', 'exposition',
@@ -27,6 +34,14 @@ export const TAGS_SUGGERES = [
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()))
 const codeAleatoire = () => Math.random().toString(36).slice(2, 8).toUpperCase()
+
+// L'API Push attend la clé VAPID en Uint8Array, pas en base64url brut.
+function versUint8Array(base64url) {
+  const padding = '='.repeat((4 - (base64url.length % 4)) % 4)
+  const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const brut = atob(base64)
+  return Uint8Array.from([...brut].map((c) => c.charCodeAt(0)))
+}
 
 /* ------------------------------------------------------------------ */
 /* Mode local : une seule personne, un seul appareil, aucun partage.    */
@@ -62,7 +77,28 @@ const localStore = {
     const profil = LS.read('envies:profil', null)
     if (profil) { profil.prenom = prenom; LS.write('envies:profil', profil) }
   },
+  async majHumeur(humeur) {
+    const profil = LS.read('envies:profil', null)
+    if (profil) {
+      profil.humeur = humeur
+      profil.humeur_le = new Date().toISOString().slice(0, 10)
+      LS.write('envies:profil', profil)
+    }
+  },
+  async majMessageJour(message) {
+    const profil = LS.read('envies:profil', null)
+    if (profil) {
+      profil.message_jour = message
+      profil.message_jour_le = new Date().toISOString().slice(0, 10)
+      LS.write('envies:profil', profil)
+    }
+  },
   async partenaire() { return null },
+  // Mode local : un seul appareil, personne à notifier.
+  async envoyerNotification() {},
+  async activerNotifications() { throw new Error('notifications_non_disponibles') },
+  async desactiverNotifications() {},
+  async statutNotifications() { return 'indisponible' },
   async lister() {
     return LS.read('envies:items', []).sort(trierItems)
   },
@@ -130,7 +166,7 @@ const remoteStore = {
     if (!user) return null
     const { data, error } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, couple_id, couples(code_invitation, phrase_perso)')
+      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le, couple_id, couples(code_invitation, phrase_perso)')
       .eq('id', user.id)
       .maybeSingle()
     if (error) throw error
@@ -139,6 +175,10 @@ const remoteStore = {
       id: data.id,
       prenom: data.prenom,
       avatar_url: data.avatar_url || '',
+      humeur: data.humeur || '',
+      humeur_le: data.humeur_le,
+      message_jour: data.message_jour || '',
+      message_jour_le: data.message_jour_le,
       couple_id: data.couple_id,
       code_invitation: data.couples?.code_invitation,
       phrase_perso: data.couples?.phrase_perso || ''
@@ -149,7 +189,7 @@ const remoteStore = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url')
+      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le')
       .eq('couple_id', coupleId)
       .neq('id', user.id)
       .maybeSingle()
@@ -160,6 +200,28 @@ const remoteStore = {
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: { emailRedirectTo: window.location.origin }
+    })
+    if (error) throw error
+  },
+
+  async inscrireMotDePasse(email, motDePasse) {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: motDePasse,
+      options: { emailRedirectTo: window.location.origin }
+    })
+    if (error) throw error
+  },
+
+  async connecterMotDePasse(email, motDePasse) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password: motDePasse })
+    if (error) throw error
+  },
+
+  async connecterGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
     })
     if (error) throw error
   },
@@ -213,6 +275,70 @@ const remoteStore = {
   async majPrenom(prenom) {
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('profils').update({ prenom }).eq('id', user.id)
+  },
+
+  async majHumeur(humeur) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase
+      .from('profils')
+      .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10) })
+      .eq('id', user.id)
+  },
+
+  async majMessageJour(message) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase
+      .from('profils')
+      .update({ message_jour: message, message_jour_le: new Date().toISOString().slice(0, 10) })
+      .eq('id', user.id)
+  },
+
+  // Best-effort : une notification qui échoue ne doit jamais faire échouer
+  // l'action principale (ajout d'envie, commentaire...).
+  async envoyerNotification(titre, corps) {
+    try { await supabase.functions.invoke('notifier-partenaire', { body: { titre, corps } }) }
+    catch { /* pas grave */ }
+  },
+
+  async statutNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'indisponible'
+    if (Notification.permission === 'denied') return 'refusee'
+    const registration = await navigator.serviceWorker.ready
+    const abonnement = await registration.pushManager.getSubscription()
+    return abonnement ? 'active' : 'inactive'
+  },
+
+  async activerNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      throw new Error('notifications_non_disponibles')
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') throw new Error('notifications_refusees')
+
+    const registration = await navigator.serviceWorker.ready
+    let abonnement = await registration.pushManager.getSubscription()
+    if (!abonnement) {
+      abonnement = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: versUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+      })
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const json = abonnement.toJSON()
+    await supabase.from('push_subscriptions').upsert(
+      { profil_id: user.id, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
+      { onConflict: 'endpoint' }
+    )
+  },
+
+  async desactiverNotifications() {
+    const registration = await navigator.serviceWorker.ready
+    const abonnement = await registration.pushManager.getSubscription()
+    if (abonnement) {
+      await supabase.from('push_subscriptions').delete().eq('endpoint', abonnement.endpoint)
+      await abonnement.unsubscribe()
+    }
   },
 
   async lister() {
@@ -320,9 +446,26 @@ function trierItems(a, b) {
 export const store = isRemote ? remoteStore : localStore
 export { isRemote }
 
+// HEIC/HEIF (format par défaut des iPhone) n'est décodable ni par <img>/<canvas>
+// ni par la plupart des navigateurs non-Safari : on le convertit d'abord en JPEG.
+// Import différé : la librairie (wasm) ne pèse que pour qui envoie vraiment du HEIC.
+async function versJPEGSiHEIC(fichier) {
+  const estHEIC = fichier.type === 'image/heic' || fichier.type === 'image/heif' || /\.hei[cf]$/i.test(fichier.name)
+  if (!estHEIC) return fichier
+  const { default: heic2any } = await import('heic2any')
+  const converti = await heic2any({ blob: fichier, toType: 'image/jpeg', quality: 0.9 })
+  const blob = Array.isArray(converti) ? converti[0] : converti
+  return new File([blob], fichier.name.replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' })
+}
+
 /* Compression avant envoi : sans ça, quelques photos suffisent à saturer
    le palier gratuit de stockage. */
-export function compresserImage(fichier, maxCote = 1400, qualite = 0.82) {
+export async function compresserImage(fichier, maxCote = 1400, qualite = 0.82) {
+  try {
+    fichier = await versJPEGSiHEIC(fichier)
+  } catch {
+    throw new Error('heic_illisible')
+  }
   return new Promise((resoudre, rejeter) => {
     const lecteur = new FileReader()
     lecteur.onerror = () => rejeter(new Error('Lecture du fichier impossible.'))
@@ -398,4 +541,20 @@ export function telechargerEvenement(item, debut, fin) {
   lien.click()
   document.body.removeChild(lien)
   setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+// Passe par un blob local : l'attribut `download` d'un <a> est ignoré par les
+// navigateurs sur une URL cross-origin (le bucket Supabase), il faut donc
+// rapatrier l'image nous-mêmes avant de déclencher le téléchargement.
+export async function telechargerPhoto(url, nomFichier = 'photo.jpg') {
+  const reponse = await fetch(url)
+  const blob = await reponse.blob()
+  const objetUrl = URL.createObjectURL(blob)
+  const lien = document.createElement('a')
+  lien.href = objetUrl
+  lien.download = nomFichier
+  document.body.appendChild(lien)
+  lien.click()
+  document.body.removeChild(lien)
+  setTimeout(() => URL.revokeObjectURL(objetUrl), 4000)
 }

@@ -1,24 +1,33 @@
+import { useState } from 'react'
 import { TYPES } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { CarteEnvie, Vide, BoutonProfil } from '../components/Commun'
 
-export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil }) {
+export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil, onOuvrirCalendrier }) {
   const { t, tn } = useLangue()
+  const [tri, setTri] = useState('date')
   const restants = items.filter((i) => !i.fait)
 
   const planifiees = restants
     .filter((i) => i.date_prevue)
     .sort((a, b) => new Date(a.date_prevue) - new Date(b.date_prevue))
-  const sansDate = restants.filter((i) => !i.date_prevue)
+  const sansDate = restants
+    .filter((i) => !i.date_prevue)
+    .sort((a, b) => new Date(b.cree_le) - new Date(a.cree_le))
 
   const groupes = Object.keys(TYPES)
-    .map((cle) => ({ cle, label: t(`type_${cle}`), liste: sansDate.filter((i) => i.type === cle) }))
+    .map((cle) => ({ cle, label: t(`type_${cle}`), liste: restants.filter((i) => i.type === cle) }))
     .filter((g) => g.liste.length > 0)
 
   return (
     <div className="screen">
       <div style={{ position: 'relative' }}>
         {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirCalendrier && (
+          <button className="calendrier-ouvrir" onClick={onOuvrirCalendrier} aria-label={t('calendrier_aria')}>
+            📅
+          </button>
+        )}
         <h1 className="header__title" style={{ fontSize: 44, textAlign: 'center', marginBottom: 6 }}>
           {t('afaire_titre')}
         </h1>
@@ -27,9 +36,16 @@ export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, on
         </p>
       </div>
 
+      {restants.length > 0 && (
+        <div className="segmented" role="group" aria-label={t('trier_aria')}>
+          <button aria-pressed={tri === 'date'} onClick={() => setTri('date')}>{t('trier_date')}</button>
+          <button aria-pressed={tri === 'type'} onClick={() => setTri('type')}>{t('trier_type')}</button>
+        </div>
+      )}
+
       {restants.length === 0 ? (
         <Vide titre={t('afaire_vide_titre')} texte={t('afaire_vide_texte')} />
-      ) : (
+      ) : tri === 'date' ? (
         <>
           {planifiees.length > 0 && (
             <section>
@@ -39,15 +55,24 @@ export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, on
               ))}
             </section>
           )}
-          {groupes.map((g) => (
-            <section key={g.cle}>
-              <h2 className="section-label">{g.label}</h2>
-              {g.liste.map((item) => (
+          {sansDate.length > 0 && (
+            <section>
+              {planifiees.length > 0 && <h2 className="section-label">{t('sans_date')}</h2>}
+              {sansDate.map((item) => (
                 <CarteEnvie key={item.id} item={item} onOuvrir={onOuvrir} onBasculer={onBasculer} />
               ))}
             </section>
-          ))}
+          )}
         </>
+      ) : (
+        groupes.map((g) => (
+          <section key={g.cle}>
+            <h2 className="section-label">{g.label}</h2>
+            {g.liste.map((item) => (
+              <CarteEnvie key={item.id} item={item} onOuvrir={onOuvrir} onBasculer={onBasculer} />
+            ))}
+          </section>
+        ))
       )}
     </div>
   )

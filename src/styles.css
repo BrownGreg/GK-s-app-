@@ -134,6 +134,21 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   font-weight: 500;
 }
 
+.tri-ligne { display: flex; align-items: center; gap: 8px; margin-top: -10px; margin-bottom: 20px; }
+.segmented--petit { flex: 1; margin-bottom: 0; padding: 4px; }
+.segmented--petit button { padding: 8px 4px; font-size: 13px; }
+.tri-sens {
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--cream);
+  color: var(--ink);
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+}
+
 /* ---------- Cartes ---------- */
 
 .card {
@@ -462,6 +477,10 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 .stars-input button { color: inherit; line-height: 1; }
 .stars-input button.on { color: var(--gold); }
 
+.humeurs { display: flex; gap: 6px; flex-wrap: wrap; font-size: 26px; }
+.humeurs button { line-height: 1; padding: 4px; opacity: 0.4; transition: opacity 120ms ease, transform 120ms ease; }
+.humeurs button.on { opacity: 1; transform: scale(1.18); }
+
 .avis { display: flex; gap: 12px; margin-bottom: 20px; }
 .avis__avatar {
   width: 42px;
@@ -482,7 +501,8 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 
 .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 10px; }
 .photos__item { position: relative; aspect-ratio: 1; }
-.photos__item img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; }
+.photos__voir { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; cursor: pointer; }
+.photos__voir img { width: 100%; height: 100%; object-fit: cover; border-radius: 12px; display: block; }
 .photos__suppr {
   position: absolute;
   top: 5px;
@@ -497,6 +517,21 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   display: grid;
   place-items: center;
 }
+.photos__like {
+  position: absolute;
+  left: 5px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: var(--r-pill);
+  background: rgba(6, 12, 26, 0.65);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+.photos__like.on { color: var(--coral); }
 .photos label {
   aspect-ratio: 1;
   border: 1px dashed rgba(22, 35, 61, 0.28);
@@ -510,6 +545,129 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 .photos input { display: none; }
 
 .meta { font-size: 13px; color: var(--ink-soft); margin: 0 0 14px; }
+
+/* ---------- Photo plein écran ---------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(6, 12, 26, 0.95);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox img {
+  max-width: 92vw;
+  max-height: 78vh;
+  object-fit: contain;
+  border-radius: 10px;
+}
+.lightbox__fermer {
+  position: absolute;
+  top: calc(var(--safe-top) + 14px);
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(245, 240, 230, 0.12);
+  color: var(--cream);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+}
+.lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(245, 240, 230, 0.12);
+  color: var(--cream);
+  font-size: 26px;
+  display: grid;
+  place-items: center;
+}
+.lightbox__nav--prec { left: 10px; }
+.lightbox__nav--suiv { right: 10px; }
+.lightbox__barre {
+  position: absolute;
+  bottom: calc(var(--safe-bottom) + 20px);
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+.lightbox__like, .lightbox__telecharger {
+  padding: 11px 20px;
+  border-radius: var(--r-pill);
+  background: rgba(245, 240, 230, 0.12);
+  color: var(--cream);
+  font-size: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.lightbox__like.on { color: var(--coral); }
+
+/* ---------- Calendrier ---------- */
+
+.calendrier__nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.calendrier__nav button { padding: 8px 14px; border-radius: var(--r-pill); background: rgba(22, 35, 61, 0.06); color: var(--ink); font-size: 14px; }
+
+.calendrier__grille { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 4px; }
+.calendrier__grille--entete span { text-align: center; font-size: 12px; color: var(--ink-soft); padding-bottom: 6px; }
+.calendrier__grille button {
+  aspect-ratio: 1;
+  border-radius: 50%;
+  font-size: 14px;
+  color: var(--ink);
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+.calendrier__grille button.auj { font-weight: 600; color: var(--gold); }
+.calendrier__grille button.choisi { background: var(--ink); color: #fff; }
+.calendrier__point {
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--coral);
+}
+.calendrier__grille button.choisi .calendrier__point { background: var(--cream); }
+
+.calendrier__envie {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(22, 35, 61, 0.05);
+  color: var(--ink);
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.calendrier-ouvrir {
+  position: absolute;
+  top: 0;
+  right: 48px;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--navy-700);
+  border: 1px solid rgba(200, 155, 60, 0.4);
+  color: var(--gold);
+  font-size: 17px;
+  display: grid;
+  place-items: center;
+}
 
 .avatar-pick { text-align: center; margin: 6px 0 20px; }
 .avatar-pick label {

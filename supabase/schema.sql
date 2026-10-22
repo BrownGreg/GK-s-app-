@@ -15,15 +15,27 @@ create table if not exists couples (
 -- ---------------------------------------------------------------- profils
 
 create table if not exists profils (
-  id         uuid primary key references auth.users on delete cascade,
-  prenom     text not null,
-  avatar_url text,
-  couple_id  uuid references couples on delete set null,
-  cree_le    timestamptz default now()
+  id              uuid primary key references auth.users on delete cascade,
+  prenom          text not null,
+  avatar_url      text,
+  humeur          text, -- emoji libre, l'humeur du jour visible par le/la partenaire.
+  humeur_le       date,
+  message_jour    text, -- petit mot à l'attention du/de la partenaire, pour la journée.
+  message_jour_le date,
+  couple_id       uuid references couples on delete set null,
+  cree_le         timestamptz default now()
 );
 
 -- Si la table existait déjà avant l'ajout de la photo de profil.
 alter table profils add column if not exists avatar_url text;
+
+-- Si la table existait déjà avant l'ajout de l'humeur du jour.
+alter table profils add column if not exists humeur text;
+alter table profils add column if not exists humeur_le date;
+
+-- Si la table existait déjà avant l'ajout du message du jour.
+alter table profils add column if not exists message_jour text;
+alter table profils add column if not exists message_jour_le date;
 
 -- ------------------------------------------------------------------ items
 
@@ -47,6 +59,8 @@ create table if not exists items (
   -- Une seule colonne note/commentaire aurait été écrasée par le dernier qui la modifie.
   avis         jsonb not null default '{}'::jsonb,
   photos       text[] default '{}',
+  -- Likes par photo : { "<url>": ["<profil_id>", ...] }.
+  photo_likes  jsonb not null default '{}'::jsonb,
   -- Nullables : une envie peut se vivre à la maison, sans coordonnées.
   lat          double precision,
   lng          double precision,
@@ -70,6 +84,9 @@ alter table items add column if not exists wishlist boolean not null default fal
 
 -- Si la table existait déjà avant l'ajout de la date de fin optionnelle.
 alter table items add column if not exists date_fin timestamptz;
+
+-- Si la table existait déjà avant les likes sur les photos.
+alter table items add column if not exists photo_likes jsonb not null default '{}'::jsonb;
 
 -- Si la table existait déjà avant le passage à l'avis par personne : on
 -- migre note/commentaire (attribués à qui a créé l'envie, faute de mieux
@@ -208,6 +225,38 @@ begin
     alter publication supabase_realtime add table requetes;
   end if;
 end $$;
+
+-- ------------------------------------------------------ notifications push
+-- L'app appelle l'Edge Function `notifier-partenaire` juste après chaque
+-- action (pas de déclencheur SQL ici : plus simple, et le client sait déjà
+-- précisément qui a fait quoi, pas besoin de deviner depuis un diff de ligne).
+
+create table if not exists push_subscriptions (
+  id        uuid primary key default gen_random_uuid(),
+  profil_id uuid not null references profils on delete cascade,
+  endpoint  text not null unique,
+  p256dh    text not null,
+  auth      text not null,
+  cree_le   timestamptz default now()
+);
+
+alter table push_subscriptions enable row level security;
+
+drop policy if exists push_subscriptions_lecture on push_subscriptions;
+create policy push_subscriptions_lecture on push_subscriptions for select
+  using (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_ecriture on push_subscriptions;
+create policy push_subscriptions_ecriture on push_subscriptions for insert
+  with check (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_maj on push_subscriptions;
+create policy push_subscriptions_maj on push_subscriptions for update
+  using (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_suppression on push_subscriptions;
+create policy push_subscriptions_suppression on push_subscriptions for delete
+  using (profil_id = auth.uid());
 
 -- ------------------------------------------------------------------ photos
 -- Créer ensuite un bucket public nommé « photos » dans Storage,

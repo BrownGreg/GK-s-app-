@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { useLangue } from './lib/i18n'
 import { BarreOnglets } from './components/Commun'
 import { FicheEnvie, FormulaireEnvie, PanneauProfil, PanneauRequete } from './components/Panneaux'
+import { PanneauCalendrier } from './components/Calendrier'
 // MapLibre pèse lourd : on ne le charge qu'à l'ouverture de l'onglet Carte.
 const CarteEcran = lazy(() => import('./screens/CarteEcran'))
 import ListeEcran from './screens/ListeEcran'
@@ -24,6 +25,7 @@ export default function App() {
   const [panneauRequete, setPanneauRequete] = useState(false)
   const [message, setMessage] = useState('')
   const [profilOuvert, setProfilOuvert] = useState(false)
+  const [calendrierOuvert, setCalendrierOuvert] = useState(false)
   const [partenaire, setPartenaire] = useState(null)
 
   /* ---------- Session ---------- */
@@ -96,6 +98,7 @@ export default function App() {
       await store.creer(donnees)
       await rafraichir()
       signaler(t('envie_ajoutee'))
+      store.envoyerNotification(t('notif_nouvelle_envie'), donnees.titre)
     } catch (e) {
       setItems((liste) => liste.filter((i) => i.id !== provisoire.id))
       signaler(t(e.message) || t('envie_erreur'))
@@ -105,7 +108,16 @@ export default function App() {
   const modifier = async (id, patch) => {
     setItems((liste) => liste.map((i) => (i.id === id ? { ...i, ...patch } : i)))
     setFiche((f) => (f && f.id === id ? { ...f, ...patch } : f))
-    try { await store.modifier(id, patch) } catch { signaler(t('modif_non_enregistree')); rafraichir() }
+    try {
+      await store.modifier(id, patch)
+      if (patch.avis) {
+        const titre = items.find((i) => i.id === id)?.titre || ''
+        store.envoyerNotification(t('notif_nouveau_commentaire'), titre)
+      }
+    } catch {
+      signaler(t('modif_non_enregistree'))
+      rafraichir()
+    }
   }
 
   const basculer = (item) =>
@@ -122,7 +134,9 @@ export default function App() {
 
   const ajouterPhoto = async (id, dataUrl) => {
     const url = await store.ajouterPhoto(id, dataUrl)
+    const titre = items.find((i) => i.id === id)?.titre || ''
     modifier(id, { photos: [...(items.find((i) => i.id === id)?.photos || []), url] })
+    store.envoyerNotification(t('notif_nouvelle_photo'), titre)
   }
 
   const supprimerPhoto = async (id, url) => {
@@ -137,6 +151,7 @@ export default function App() {
     try {
       await store.creerRequete(texte)
       await rafraichirRequetes()
+      store.envoyerNotification(t('notif_nouvelle_demande'), texte)
     } catch (e) {
       signaler(t(e.message) || t('envie_erreur'))
     }
@@ -190,6 +205,21 @@ export default function App() {
     try { await store.majPrenom(prenom) } catch { signaler(t('prenom_non_enregistre')) }
   }
 
+  const editerHumeur = async (humeur) => {
+    const humeur_le = new Date().toISOString().slice(0, 10)
+    setProfil((p) => ({ ...p, humeur, humeur_le }))
+    try { await store.majHumeur(humeur) } catch { /* pas critique, on retentera au prochain changement */ }
+  }
+
+  const editerMessageJour = async (message) => {
+    const message_jour_le = new Date().toISOString().slice(0, 10)
+    setProfil((p) => ({ ...p, message_jour: message, message_jour_le }))
+    try {
+      await store.majMessageJour(message)
+      if (message.trim()) store.envoyerNotification(t('notif_nouveau_message'), message.trim())
+    } catch { /* pas critique, on retentera au prochain changement */ }
+  }
+
   /* ---------- Rendu ---------- */
 
   if (chargement) return <div className="gate"><p>{t('un_instant')}</p></div>
@@ -228,6 +258,7 @@ export default function App() {
           onBasculer={basculer}
           avatarUrl={profil.avatar_url}
           onOuvrirProfil={() => setProfilOuvert(true)}
+          onOuvrirCalendrier={() => setCalendrierOuvert(true)}
         />
       )}
       {onglet === 'wishlist' && (
@@ -289,11 +320,21 @@ export default function App() {
           onFermer={() => setProfilOuvert(false)}
           onAvatar={editerAvatar}
           onPrenom={editerPrenom}
+          onHumeur={editerHumeur}
+          onMessageJour={editerMessageJour}
         />
       )}
 
       {panneauRequete && (
         <PanneauRequete onFermer={() => setPanneauRequete(false)} onCreer={creerRequete} />
+      )}
+
+      {calendrierOuvert && (
+        <PanneauCalendrier
+          items={sorties}
+          onFermer={() => setCalendrierOuvert(false)}
+          onOuvrir={(item) => { setCalendrierOuvert(false); setFiche(item) }}
+        />
       )}
 
       {onglet !== 'carte' && (
