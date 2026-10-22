@@ -220,6 +220,38 @@ begin
   end if;
 end $$;
 
+-- ------------------------------------------------------ notifications push
+-- L'app appelle l'Edge Function `notifier-partenaire` juste après chaque
+-- action (pas de déclencheur SQL ici : plus simple, et le client sait déjà
+-- précisément qui a fait quoi, pas besoin de deviner depuis un diff de ligne).
+
+create table if not exists push_subscriptions (
+  id        uuid primary key default gen_random_uuid(),
+  profil_id uuid not null references profils on delete cascade,
+  endpoint  text not null unique,
+  p256dh    text not null,
+  auth      text not null,
+  cree_le   timestamptz default now()
+);
+
+alter table push_subscriptions enable row level security;
+
+drop policy if exists push_subscriptions_lecture on push_subscriptions;
+create policy push_subscriptions_lecture on push_subscriptions for select
+  using (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_ecriture on push_subscriptions;
+create policy push_subscriptions_ecriture on push_subscriptions for insert
+  with check (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_maj on push_subscriptions;
+create policy push_subscriptions_maj on push_subscriptions for update
+  using (profil_id = auth.uid());
+
+drop policy if exists push_subscriptions_suppression on push_subscriptions;
+create policy push_subscriptions_suppression on push_subscriptions for delete
+  using (profil_id = auth.uid());
+
 -- ------------------------------------------------------------------ photos
 -- Créer ensuite un bucket public nommé « photos » dans Storage,
 -- puis appliquer ces deux règles :

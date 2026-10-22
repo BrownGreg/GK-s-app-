@@ -3,7 +3,7 @@ import { TYPES } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { CarteEnvie, Vide, BoutonProfil } from '../components/Commun'
 
-export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil }) {
+export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil, onOuvrirCalendrier }) {
   const { t, tn } = useLangue()
   const [tri, setTri] = useState('date')
   const restants = items.filter((i) => !i.fait)
@@ -23,6 +23,11 @@ export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, on
     <div className="screen">
       <div style={{ position: 'relative' }}>
         {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirCalendrier && (
+          <button className="calendrier-ouvrir" onClick={onOuvrirCalendrier} aria-label={t('calendrier_aria')}>
+            📅
+          </button>
+        )}
         <h1 className="header__title" style={{ fontSize: 44, textAlign: 'center', marginBottom: 6 }}>
           {t('afaire_titre')}
         </h1>

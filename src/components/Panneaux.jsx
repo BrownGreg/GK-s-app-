@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, isRemote, telechargerEvenement, telechargerPhoto } from '../lib/store'
+import { store, TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, isRemote, telechargerEvenement, telechargerPhoto } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { IconeLoupe, Etoiles } from './Commun'
 
@@ -555,10 +555,31 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
   const [envoi, setEnvoi] = useState(false)
   const [erreur, setErreur] = useState('')
   const [copie, setCopie] = useState(false)
+  const [statutNotif, setStatutNotif] = useState('indisponible')
+  const [erreurNotif, setErreurNotif] = useState('')
 
   const aujourdhui = new Date().toISOString().slice(0, 10)
   const monHumeur = profil.humeur_le === aujourdhui ? profil.humeur : null
   const humeurPartenaire = partenaire?.humeur_le === aujourdhui ? partenaire.humeur : null
+
+  useEffect(() => {
+    if (isRemote) store.statutNotifications().then(setStatutNotif)
+  }, [])
+
+  const basculerNotifications = async () => {
+    setErreurNotif('')
+    try {
+      if (statutNotif === 'active') {
+        await store.desactiverNotifications()
+        setStatutNotif('inactive')
+      } else {
+        await store.activerNotifications()
+        setStatutNotif('active')
+      }
+    } catch (err) {
+      setErreurNotif(t(err.message) || t('notifications_erreur'))
+    }
+  }
 
   const editerPrenom = () => {
     const prenom = window.prompt(t('votre_prenom'), profil.prenom || '')
@@ -650,6 +671,23 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
               <p className="meta" style={{ marginBottom: 0, fontSize: 26 }}>
                 {humeurPartenaire || <span style={{ fontSize: 13 }}>{t('humeur_aucune')}</span>}
               </p>
+            </div>
+          )}
+
+          {partenaire && statutNotif !== 'indisponible' && (
+            <div className="field">
+              <label>{t('notifications_titre')}</label>
+              <button
+                className={statutNotif === 'active' ? 'btn btn--gold' : 'btn btn--ghost'}
+                style={{ marginTop: 0 }}
+                onClick={basculerNotifications}
+                disabled={statutNotif === 'refusee'}
+              >
+                {statutNotif === 'active' && t('notifications_actives')}
+                {statutNotif === 'inactive' && t('notifications_activer')}
+                {statutNotif === 'refusee' && t('notifications_bloquees')}
+              </button>
+              {erreurNotif && <p style={{ color: '#b3352c', fontSize: 13, marginTop: 8 }}>{erreurNotif}</p>}
             </div>
           )}
 

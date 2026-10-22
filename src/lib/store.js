@@ -35,6 +35,14 @@ export const TAGS_SUGGERES = [
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()))
 const codeAleatoire = () => Math.random().toString(36).slice(2, 8).toUpperCase()
 
+// L'API Push attend la clé VAPID en Uint8Array, pas en base64url brut.
+function versUint8Array(base64url) {
+  const padding = '='.repeat((4 - (base64url.length % 4)) % 4)
+  const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const brut = atob(base64)
+  return Uint8Array.from([...brut].map((c) => c.charCodeAt(0)))
+}
+
 /* ------------------------------------------------------------------ */
 /* Mode local : une seule personne, un seul appareil, aucun partage.    */
 /* ------------------------------------------------------------------ */
@@ -78,6 +86,11 @@ const localStore = {
     }
   },
   async partenaire() { return null },
+  // Mode local : un seul appareil, personne à notifier.
+  async envoyerNotification() {},
+  async activerNotifications() { throw new Error('notifications_non_disponibles') },
+  async desactiverNotifications() {},
+  async statutNotifications() { return 'indisponible' },
   async lister() {
     return LS.read('envies:items', []).sort(trierItems)
   },
@@ -260,6 +273,54 @@ const remoteStore = {
       .from('profils')
       .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10) })
       .eq('id', user.id)
+  },
+
+  // Best-effort : une notification qui échoue ne doit jamais faire échouer
+  // l'action principale (ajout d'envie, commentaire...).
+  async envoyerNotification(titre, corps) {
+    try { await supabase.functions.invoke('notifier-partenaire', { body: { titre, corps } }) }
+    catch { /* pas grave */ }
+  },
+
+  async statutNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return 'indisponible'
+    if (Notification.permission === 'denied') return 'refusee'
+    const registration = await navigator.serviceWorker.ready
+    const abonnement = await registration.pushManager.getSubscription()
+    return abonnement ? 'active' : 'inactive'
+  },
+
+  async activerNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      throw new Error('notifications_non_disponibles')
+    }
+    const permission = await Notification.requestPermission()
+    if (permission !== 'granted') throw new Error('notifications_refusees')
+
+    const registration = await navigator.serviceWorker.ready
+    let abonnement = await registration.pushManager.getSubscription()
+    if (!abonnement) {
+      abonnement = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: versUint8Array(import.meta.env.VITE_VAPID_PUBLIC_KEY)
+      })
+    }
+
+    const { data: { user } } = await supabase.auth.getUser()
+    const json = abonnement.toJSON()
+    await supabase.from('push_subscriptions').upsert(
+      { profil_id: user.id, endpoint: json.endpoint, p256dh: json.keys.p256dh, auth: json.keys.auth },
+      { onConflict: 'endpoint' }
+    )
+  },
+
+  async desactiverNotifications() {
+    const registration = await navigator.serviceWorker.ready
+    const abonnement = await registration.pushManager.getSubscription()
+    if (abonnement) {
+      await supabase.from('push_subscriptions').delete().eq('endpoint', abonnement.endpoint)
+      await abonnement.unsubscribe()
+    }
   },
 
   async lister() {
