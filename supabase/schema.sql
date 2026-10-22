@@ -53,6 +53,8 @@ create table if not exists items (
   -- Une seule colonne note/commentaire aurait été écrasée par le dernier qui la modifie.
   avis         jsonb not null default '{}'::jsonb,
   photos       text[] default '{}',
+  -- Likes par photo : { "<url>": ["<profil_id>", ...] }.
+  photo_likes  jsonb not null default '{}'::jsonb,
   -- Nullables : une envie peut se vivre à la maison, sans coordonnées.
   lat          double precision,
   lng          double precision,
@@ -76,6 +78,9 @@ alter table items add column if not exists wishlist boolean not null default fal
 
 -- Si la table existait déjà avant l'ajout de la date de fin optionnelle.
 alter table items add column if not exists date_fin timestamptz;
+
+-- Si la table existait déjà avant les likes sur les photos.
+alter table items add column if not exists photo_likes jsonb not null default '{}'::jsonb;
 
 -- Si la table existait déjà avant le passage à l'avis par personne : on
 -- migre note/commentaire (attribués à qui a créé l'envie, faute de mieux

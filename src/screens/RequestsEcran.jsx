@@ -2,13 +2,16 @@ import { useLangue } from '../lib/i18n'
 import { Vide, BoutonProfil } from '../components/Commun'
 
 export default function RequestsEcran({ requetes, profil, partenaire, onAjouterTodo, onSupprimer, avatarUrl, onOuvrirProfil }) {
-  const { t } = useLangue()
+  const { t, langue } = useLangue()
 
   const nomDemandeur = (id) => {
     if (id === profil.id) return t('demande_par_vous')
     if (partenaire && id === partenaire.id) return t('demande_par', { prenom: partenaire.prenom })
     return ''
   }
+
+  const formaterDate = (iso) =>
+    new Date(iso).toLocaleDateString(langue === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
     <div className="screen">
@@ -24,7 +27,9 @@ export default function RequestsEcran({ requetes, profil, partenaire, onAjouterT
       ) : (
         requetes.map((r) => (
           <div className="requete-card" key={r.id}>
-            <p className="requete-card__auteur">{nomDemandeur(r.demande_par)}</p>
+            <p className="requete-card__auteur">
+              {nomDemandeur(r.demande_par)}{r.cree_le && ` · ${formaterDate(r.cree_le)}`}
+            </p>
             <p className="requete-card__texte">{r.texte}</p>
             <div className="requete-card__actions">
               {r.statut === 'ouverte' ? (

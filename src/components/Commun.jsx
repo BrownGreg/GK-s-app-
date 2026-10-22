@@ -1,4 +1,4 @@
-import { TYPES } from '../lib/store'
+import { TYPES, moyenneNote } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 
 // L'app change de nom à chaque rechargement — tiré une seule fois par
@@ -51,8 +51,7 @@ export function Etoiles({ note, vide = false }) {
 export function CarteEnvie({ item, onOuvrir, onBasculer }) {
   const { t, langue } = useLangue()
   const type = TYPES[item.type] || TYPES.activite
-  const notes = Object.values(item.avis || {}).map((a) => a.note).filter(Boolean)
-  const moyenne = notes.length ? Math.round(notes.reduce((a, b) => a + b, 0) / notes.length) : 0
+  const moyenne = moyenneNote(item)
   return (
     <div className="card">
       <button className="card__body" onClick={() => onOuvrir(item)}>
@@ -81,7 +80,7 @@ export function CarteEnvie({ item, onOuvrir, onBasculer }) {
         >
           {item.fait ? t('statut_fait') : t('statut_afaire')}
         </button>
-        {item.fait && <Etoiles note={moyenne} vide={notes.length === 0} />}
+        {item.fait && <Etoiles note={Math.round(moyenne)} vide={moyenne === 0} />}
       </div>
     </div>
   )

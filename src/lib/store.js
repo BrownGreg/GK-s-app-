@@ -19,6 +19,13 @@ export const TYPES = {
 export const TYPES_SORTIE = ['lieu', 'activite', 'resto', 'cafe', 'bar']
 export const TYPES_SOUHAIT = ['nourriture', 'media', 'objet', 'autre']
 
+// Moyenne des notes laissées par chacun — non arrondie, pour trier correctement
+// (arrondir seulement à l'affichage des étoiles).
+export function moyenneNote(item) {
+  const notes = Object.values(item.avis || {}).map((a) => a.note).filter(Boolean)
+  return notes.length ? notes.reduce((a, b) => a + b, 0) / notes.length : 0
+}
+
 export const TAGS_SUGGERES = [
   'musée', 'bar', 'café', 'balade', 'cuisine maison', 'soirée maison', 'concert',
   'cinéma', 'sport', 'brunch', 'week-end', 'voyage', 'exposition',
@@ -338,9 +345,26 @@ function trierItems(a, b) {
 export const store = isRemote ? remoteStore : localStore
 export { isRemote }
 
+// HEIC/HEIF (format par défaut des iPhone) n'est décodable ni par <img>/<canvas>
+// ni par la plupart des navigateurs non-Safari : on le convertit d'abord en JPEG.
+// Import différé : la librairie (wasm) ne pèse que pour qui envoie vraiment du HEIC.
+async function versJPEGSiHEIC(fichier) {
+  const estHEIC = fichier.type === 'image/heic' || fichier.type === 'image/heif' || /\.hei[cf]$/i.test(fichier.name)
+  if (!estHEIC) return fichier
+  const { default: heic2any } = await import('heic2any')
+  const converti = await heic2any({ blob: fichier, toType: 'image/jpeg', quality: 0.9 })
+  const blob = Array.isArray(converti) ? converti[0] : converti
+  return new File([blob], fichier.name.replace(/\.hei[cf]$/i, '.jpg'), { type: 'image/jpeg' })
+}
+
 /* Compression avant envoi : sans ça, quelques photos suffisent à saturer
    le palier gratuit de stockage. */
-export function compresserImage(fichier, maxCote = 1400, qualite = 0.82) {
+export async function compresserImage(fichier, maxCote = 1400, qualite = 0.82) {
+  try {
+    fichier = await versJPEGSiHEIC(fichier)
+  } catch {
+    throw new Error('heic_illisible')
+  }
   return new Promise((resoudre, rejeter) => {
     const lecteur = new FileReader()
     lecteur.onerror = () => rejeter(new Error('Lecture du fichier impossible.'))
@@ -416,4 +440,20 @@ export function telechargerEvenement(item, debut, fin) {
   lien.click()
   document.body.removeChild(lien)
   setTimeout(() => URL.revokeObjectURL(url), 4000)
+}
+
+// Passe par un blob local : l'attribut `download` d'un <a> est ignoré par les
+// navigateurs sur une URL cross-origin (le bucket Supabase), il faut donc
+// rapatrier l'image nous-mêmes avant de déclencher le téléchargement.
+export async function telechargerPhoto(url, nomFichier = 'photo.jpg') {
+  const reponse = await fetch(url)
+  const blob = await reponse.blob()
+  const objetUrl = URL.createObjectURL(blob)
+  const lien = document.createElement('a')
+  lien.href = objetUrl
+  lien.download = nomFichier
+  document.body.appendChild(lien)
+  lien.click()
+  document.body.removeChild(lien)
+  setTimeout(() => URL.revokeObjectURL(objetUrl), 4000)
 }

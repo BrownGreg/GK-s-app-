@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, isRemote, telechargerEvenement } from '../lib/store'
+import { TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, isRemote, telechargerEvenement, telechargerPhoto } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { IconeLoupe, Etoiles } from './Commun'
 
@@ -37,7 +37,9 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
   const { t, langue } = useLangue()
   const [envoiPhoto, setEnvoiPhoto] = useState(false)
   const [erreur, setErreur] = useState('')
+  const [photoOuverte, setPhotoOuverte] = useState(null) // index dans item.photos, ou null
   const type = TYPES[item.type] || TYPES.activite
+  const photos = item.photos || []
 
   const basculer = () =>
     onModifier(item.id, {
@@ -55,10 +57,16 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
       const compressee = await compresserImage(fichier)
       await onAjouterPhoto(item.id, compressee)
     } catch (err) {
-      setErreur(err.message || t('photo_erreur'))
+      setErreur(t(err.message) || t('photo_erreur'))
     } finally {
       setEnvoiPhoto(false)
     }
+  }
+
+  const basculerLike = (url) => {
+    const aime = item.photo_likes?.[url] || []
+    const likes = aime.includes(profil.id) ? aime.filter((id) => id !== profil.id) : [...aime, profil.id]
+    onModifier(item.id, { photo_likes: { ...item.photo_likes, [url]: likes } })
   }
 
   return (
@@ -68,6 +76,9 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
         {t(`type_${item.type}`)}
       </div>
       <h2>{item.titre}</h2>
+      {item.cree_le && (
+        <p className="meta" style={{ marginBottom: 10 }}>{t('cree_le_affichage', { date: formaterDate(item.cree_le, langue) })}</p>
+      )}
       {item.description && <p className="meta">{item.description}</p>}
 
       {item.tags?.length > 0 && (
@@ -169,25 +180,50 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
           <div className="field">
             <label>{t('photos')}</label>
             <div className="photos">
-              {(item.photos || []).map((src, i) => (
-                <div className="photos__item" key={i}>
-                  <img src={src} alt="" loading="lazy" />
-                  <button
-                    className="photos__suppr"
-                    aria-label={t('supprimer_photo_aria')}
-                    onClick={() => onSupprimerPhoto(item.id, src)}
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+              {photos.map((src, i) => {
+                const likes = item.photo_likes?.[src] || []
+                const aimee = likes.includes(profil.id)
+                return (
+                  <div className="photos__item" key={i}>
+                    <button className="photos__voir" onClick={() => setPhotoOuverte(i)} aria-label={t('photo_agrandir_aria')}>
+                      <img src={src} alt="" loading="lazy" />
+                    </button>
+                    <button
+                      className="photos__suppr"
+                      aria-label={t('supprimer_photo_aria')}
+                      onClick={() => onSupprimerPhoto(item.id, src)}
+                    >
+                      ×
+                    </button>
+                    <button
+                      className={`photos__like${aimee ? ' on' : ''}`}
+                      aria-label={t('aimer_photo_aria')}
+                      onClick={() => basculerLike(src)}
+                    >
+                      {aimee ? '♥' : '♡'}{likes.length > 0 && <span>{likes.length}</span>}
+                    </button>
+                  </div>
+                )
+              })}
               <label>
                 {envoiPhoto ? '…' : '+'}
-                <input type="file" accept="image/*" onChange={choisirPhoto} disabled={envoiPhoto} />
+                <input type="file" accept="image/*,.heic,.heif" onChange={choisirPhoto} disabled={envoiPhoto} />
               </label>
             </div>
             {erreur && <p style={{ color: '#b3352c', fontSize: 13, marginTop: 8 }}>{erreur}</p>}
           </div>
+
+          {photoOuverte !== null && (
+            <PhotoLightbox
+              photos={photos}
+              index={photoOuverte}
+              likes={item.photo_likes}
+              profilId={profil.id}
+              onFermer={() => setPhotoOuverte(null)}
+              onNaviguer={setPhotoOuverte}
+              onLiker={basculerLike}
+            />
+          )}
 
           {item.date_faite && <p className="meta">{t('fait_le', { date: formaterDate(item.date_faite, langue) })}</p>}
         </>
@@ -197,6 +233,60 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
         {t('supprimer_envie')}
       </button>
     </Panneau>
+  )
+}
+
+/* Plein écran au clic sur une photo, avec navigation, like et téléchargement. */
+function PhotoLightbox({ photos, index, likes, profilId, onFermer, onNaviguer, onLiker }) {
+  const { t } = useLangue()
+  const src = photos[index]
+  const aimee = (likes?.[src] || []).includes(profilId)
+  const nbLikes = (likes?.[src] || []).length
+
+  useEffect(() => {
+    const clavier = (e) => {
+      if (e.key === 'Escape') onFermer()
+      if (e.key === 'ArrowRight' && index < photos.length - 1) onNaviguer(index + 1)
+      if (e.key === 'ArrowLeft' && index > 0) onNaviguer(index - 1)
+    }
+    window.addEventListener('keydown', clavier)
+    return () => window.removeEventListener('keydown', clavier)
+  }, [index, photos.length, onFermer, onNaviguer])
+
+  return (
+    <div className="lightbox" onClick={onFermer}>
+      <button className="lightbox__fermer" onClick={onFermer} aria-label={t('fermer')}>×</button>
+
+      <img src={src} alt="" onClick={(e) => e.stopPropagation()} />
+
+      {photos.length > 1 && index > 0 && (
+        <button
+          className="lightbox__nav lightbox__nav--prec"
+          onClick={(e) => { e.stopPropagation(); onNaviguer(index - 1) }}
+          aria-label={t('photo_precedente_aria')}
+        >
+          ‹
+        </button>
+      )}
+      {photos.length > 1 && index < photos.length - 1 && (
+        <button
+          className="lightbox__nav lightbox__nav--suiv"
+          onClick={(e) => { e.stopPropagation(); onNaviguer(index + 1) }}
+          aria-label={t('photo_suivante_aria')}
+        >
+          ›
+        </button>
+      )}
+
+      <div className="lightbox__barre" onClick={(e) => e.stopPropagation()}>
+        <button className={`lightbox__like${aimee ? ' on' : ''}`} onClick={() => onLiker(src)} aria-label={t('aimer_photo_aria')}>
+          {aimee ? '♥' : '♡'} {nbLikes > 0 && nbLikes}
+        </button>
+        <button className="lightbox__telecharger" onClick={() => telechargerPhoto(src, `photo-${index + 1}.jpg`)}>
+          {t('telecharger')}
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -486,7 +576,7 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
       const compressee = await compresserImage(fichier, 500, 0.85)
       await onAvatar(compressee)
     } catch (err) {
-      setErreur(err.message || t('photo_erreur_profil'))
+      setErreur(t(err.message) || t('photo_erreur_profil'))
     } finally {
       setEnvoi(false)
     }
