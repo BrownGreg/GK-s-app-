@@ -181,6 +181,28 @@ const remoteStore = {
     if (error) throw error
   },
 
+  async inscrireMotDePasse(email, motDePasse) {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: motDePasse,
+      options: { emailRedirectTo: window.location.origin }
+    })
+    if (error) throw error
+  },
+
+  async connecterMotDePasse(email, motDePasse) {
+    const { error } = await supabase.auth.signInWithPassword({ email, password: motDePasse })
+    if (error) throw error
+  },
+
+  async connecterGoogle() {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    })
+    if (error) throw error
+  },
+
   async deconnecter() { await supabase.auth.signOut() },
 
   async creerCouple(prenom) {
