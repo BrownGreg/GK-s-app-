@@ -15,13 +15,15 @@ create table if not exists couples (
 -- ---------------------------------------------------------------- profils
 
 create table if not exists profils (
-  id         uuid primary key references auth.users on delete cascade,
-  prenom     text not null,
-  avatar_url text,
-  humeur     text, -- emoji libre, l'humeur du jour visible par le/la partenaire.
-  humeur_le  date,
-  couple_id  uuid references couples on delete set null,
-  cree_le    timestamptz default now()
+  id              uuid primary key references auth.users on delete cascade,
+  prenom          text not null,
+  avatar_url      text,
+  humeur          text, -- emoji libre, l'humeur du jour visible par le/la partenaire.
+  humeur_le       date,
+  message_jour    text, -- petit mot à l'attention du/de la partenaire, pour la journée.
+  message_jour_le date,
+  couple_id       uuid references couples on delete set null,
+  cree_le         timestamptz default now()
 );
 
 -- Si la table existait déjà avant l'ajout de la photo de profil.
@@ -30,6 +32,10 @@ alter table profils add column if not exists avatar_url text;
 -- Si la table existait déjà avant l'ajout de l'humeur du jour.
 alter table profils add column if not exists humeur text;
 alter table profils add column if not exists humeur_le date;
+
+-- Si la table existait déjà avant l'ajout du message du jour.
+alter table profils add column if not exists message_jour text;
+alter table profils add column if not exists message_jour_le date;
 
 -- ------------------------------------------------------------------ items
 

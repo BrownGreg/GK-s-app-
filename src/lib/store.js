@@ -85,6 +85,14 @@ const localStore = {
       LS.write('envies:profil', profil)
     }
   },
+  async majMessageJour(message) {
+    const profil = LS.read('envies:profil', null)
+    if (profil) {
+      profil.message_jour = message
+      profil.message_jour_le = new Date().toISOString().slice(0, 10)
+      LS.write('envies:profil', profil)
+    }
+  },
   async partenaire() { return null },
   // Mode local : un seul appareil, personne à notifier.
   async envoyerNotification() {},
@@ -158,7 +166,7 @@ const remoteStore = {
     if (!user) return null
     const { data, error } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le, couple_id, couples(code_invitation, phrase_perso)')
+      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le, couple_id, couples(code_invitation, phrase_perso)')
       .eq('id', user.id)
       .maybeSingle()
     if (error) throw error
@@ -169,6 +177,8 @@ const remoteStore = {
       avatar_url: data.avatar_url || '',
       humeur: data.humeur || '',
       humeur_le: data.humeur_le,
+      message_jour: data.message_jour || '',
+      message_jour_le: data.message_jour_le,
       couple_id: data.couple_id,
       code_invitation: data.couples?.code_invitation,
       phrase_perso: data.couples?.phrase_perso || ''
@@ -179,7 +189,7 @@ const remoteStore = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le')
+      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le')
       .eq('couple_id', coupleId)
       .neq('id', user.id)
       .maybeSingle()
@@ -272,6 +282,14 @@ const remoteStore = {
     await supabase
       .from('profils')
       .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10) })
+      .eq('id', user.id)
+  },
+
+  async majMessageJour(message) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase
+      .from('profils')
+      .update({ message_jour: message, message_jour_le: new Date().toISOString().slice(0, 10) })
       .eq('id', user.id)
   },
 

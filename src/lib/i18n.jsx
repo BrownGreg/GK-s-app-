@@ -9,6 +9,12 @@ const TEXTES = {
     humeur_partenaire: 'Humeur de {prenom}',
     humeur_aucune: 'Pas encore d’humeur aujourd’hui.',
 
+    message_jour_titre: 'Message du jour',
+    message_jour_placeholder: 'Message à l’attention de {prenom}…',
+    message_jour_partenaire: 'Message de {prenom}',
+    message_jour_aucun: "Pas de message aujourd'hui.",
+    notif_nouveau_message: 'Nouveau message',
+
     notifications_titre: 'Notifications',
     notifications_actives: 'Activées ✓',
     notifications_activer: 'Activer les notifications',
@@ -191,6 +197,12 @@ const TEXTES = {
     humeur_titre: 'Mood of the day',
     humeur_partenaire: '{prenom}’s mood',
     humeur_aucune: 'No mood set today yet.',
+
+    message_jour_titre: 'Message of the day',
+    message_jour_placeholder: 'A message for {prenom}…',
+    message_jour_partenaire: 'Message from {prenom}',
+    message_jour_aucun: 'No message today.',
+    notif_nouveau_message: 'New message',
 
     notifications_titre: 'Notifications',
     notifications_actives: 'Enabled ✓',

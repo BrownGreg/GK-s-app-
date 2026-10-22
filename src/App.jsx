@@ -211,6 +211,15 @@ export default function App() {
     try { await store.majHumeur(humeur) } catch { /* pas critique, on retentera au prochain changement */ }
   }
 
+  const editerMessageJour = async (message) => {
+    const message_jour_le = new Date().toISOString().slice(0, 10)
+    setProfil((p) => ({ ...p, message_jour: message, message_jour_le }))
+    try {
+      await store.majMessageJour(message)
+      if (message.trim()) store.envoyerNotification(t('notif_nouveau_message'), message.trim())
+    } catch { /* pas critique, on retentera au prochain changement */ }
+  }
+
   /* ---------- Rendu ---------- */
 
   if (chargement) return <div className="gate"><p>{t('un_instant')}</p></div>
@@ -312,6 +321,7 @@ export default function App() {
           onAvatar={editerAvatar}
           onPrenom={editerPrenom}
           onHumeur={editerHumeur}
+          onMessageJour={editerMessageJour}
         />
       )}
 

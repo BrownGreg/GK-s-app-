@@ -550,17 +550,23 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
 
 const HUMEURS = ['😊', '😍', '😌', '😴', '🤒', '😤', '😢', '🥳']
 
-export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur }) {
+export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur, onMessageJour }) {
   const { t, langue, changerLangue } = useLangue()
   const [envoi, setEnvoi] = useState(false)
   const [erreur, setErreur] = useState('')
   const [copie, setCopie] = useState(false)
   const [statutNotif, setStatutNotif] = useState('indisponible')
   const [erreurNotif, setErreurNotif] = useState('')
+  const [messageJour, setMessageJour] = useState(profil.message_jour || '')
 
   const aujourdhui = new Date().toISOString().slice(0, 10)
   const monHumeur = profil.humeur_le === aujourdhui ? profil.humeur : null
   const humeurPartenaire = partenaire?.humeur_le === aujourdhui ? partenaire.humeur : null
+  const messagePartenaire = partenaire?.message_jour_le === aujourdhui ? partenaire.message_jour : null
+
+  useEffect(() => {
+    setMessageJour(profil.message_jour_le === aujourdhui ? profil.message_jour || '' : '')
+  }, [profil.message_jour, profil.message_jour_le])
 
   useEffect(() => {
     if (isRemote) store.statutNotifications().then(setStatutNotif)
@@ -671,6 +677,31 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
               <p className="meta" style={{ marginBottom: 0, fontSize: 26 }}>
                 {humeurPartenaire || <span style={{ fontSize: 13 }}>{t('humeur_aucune')}</span>}
               </p>
+            </div>
+          )}
+
+          {partenaire && (
+            <div className="field">
+              <label>{t('message_jour_partenaire', { prenom: partenaire.prenom })}</label>
+              <p className="meta" style={{ marginBottom: 0 }}>
+                {messagePartenaire || t('message_jour_aucun')}
+              </p>
+            </div>
+          )}
+
+          {partenaire && (
+            <div className="field">
+              <label>{t('message_jour_titre')}</label>
+              <textarea
+                value={messageJour}
+                placeholder={t('message_jour_placeholder', { prenom: partenaire.prenom })}
+                onChange={(e) => setMessageJour(e.target.value)}
+                onBlur={() => {
+                  const avant = profil.message_jour_le === aujourdhui ? profil.message_jour || '' : ''
+                  if (messageJour !== avant) onMessageJour(messageJour)
+                }}
+                style={{ minHeight: 60 }}
+              />
             </div>
           )}
 
