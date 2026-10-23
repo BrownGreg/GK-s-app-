@@ -148,6 +148,42 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   display: grid;
   place-items: center;
 }
+.tri-sens--sheet { background: transparent; border: 1px solid rgba(22, 35, 61, 0.15); }
+
+.filtres-barre {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: var(--r-pill);
+  background: var(--navy-800);
+  margin-bottom: 20px;
+}
+.filtres-barre__resume { font-size: 13px; color: var(--cream-dim); }
+.filtres-barre__action {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gold-soft);
+}
+.filtres-barre__action svg { width: 16px; height: 16px; }
+.filtres-barre__badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--r-pill);
+  background: var(--coral);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  display: grid;
+  place-items: center;
+}
 
 /* ---------- Cartes ---------- */
 
@@ -219,6 +255,8 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   background: rgba(22, 35, 61, 0.07);
   color: var(--ink-soft);
 }
+
+.tag--actif { background: var(--ink); color: var(--cream); }
 
 .tag--ajouter {
   border: 1px dashed rgba(22, 35, 61, 0.28);

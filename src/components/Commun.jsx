@@ -200,6 +200,14 @@ function IconeBulle() {
   )
 }
 
+export function IconeFiltre() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 6h16M7.5 12h9M11 18h2" {...trait} />
+    </svg>
+  )
+}
+
 export function IconeLoupe() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

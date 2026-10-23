@@ -1,22 +1,41 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { TYPES } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { CarteEnvie, Vide, BoutonProfil } from '../components/Commun'
+import { BarreFiltres } from '../components/BarreFiltres'
 
 export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil, onOuvrirCalendrier }) {
   const { t, tn } = useLangue()
   const [tri, setTri] = useState('date')
+  const [tagsSelectionnes, setTagsSelectionnes] = useState([])
   const restants = items.filter((i) => !i.fait)
 
-  const planifiees = restants
+  const TRIS = [
+    { cle: 'date', libelle: t('trier_date') },
+    { cle: 'type', libelle: t('trier_type') }
+  ]
+
+  const tagsDisponibles = useMemo(
+    () => [...new Set(restants.flatMap((i) => i.tags || []))].sort((a, b) => a.localeCompare(b)),
+    [restants]
+  )
+
+  const basculerTag = (tag) =>
+    setTagsSelectionnes((t) => (t.includes(tag) ? t.filter((x) => x !== tag) : [...t, tag]))
+
+  const visibles = restants.filter(
+    (i) => tagsSelectionnes.length === 0 || tagsSelectionnes.some((tag) => i.tags?.includes(tag))
+  )
+
+  const planifiees = visibles
     .filter((i) => i.date_prevue)
     .sort((a, b) => new Date(a.date_prevue) - new Date(b.date_prevue))
-  const sansDate = restants
+  const sansDate = visibles
     .filter((i) => !i.date_prevue)
     .sort((a, b) => new Date(b.cree_le) - new Date(a.cree_le))
 
   const groupes = Object.keys(TYPES)
-    .map((cle) => ({ cle, label: t(`type_${cle}`), liste: restants.filter((i) => i.type === cle) }))
+    .map((cle) => ({ cle, label: t(`type_${cle}`), liste: visibles.filter((i) => i.type === cle) }))
     .filter((g) => g.liste.length > 0)
 
   return (
@@ -37,14 +56,21 @@ export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, on
       </div>
 
       {restants.length > 0 && (
-        <div className="segmented" role="group" aria-label={t('trier_aria')}>
-          <button aria-pressed={tri === 'date'} onClick={() => setTri('date')}>{t('trier_date')}</button>
-          <button aria-pressed={tri === 'type'} onClick={() => setTri('type')}>{t('trier_type')}</button>
-        </div>
+        <BarreFiltres
+          triOptions={TRIS}
+          tri={tri}
+          onTri={setTri}
+          tagsDisponibles={tagsDisponibles}
+          tagsSelectionnes={tagsSelectionnes}
+          onBasculerTag={basculerTag}
+          onEffacerTags={() => setTagsSelectionnes([])}
+        />
       )}
 
       {restants.length === 0 ? (
         <Vide titre={t('afaire_vide_titre')} texte={t('afaire_vide_texte')} />
+      ) : visibles.length === 0 ? (
+        <Vide titre={t('filtre_vide_titre')} texte={t('filtre_vide_texte')} />
       ) : tri === 'date' ? (
         <>
           {planifiees.length > 0 && (
