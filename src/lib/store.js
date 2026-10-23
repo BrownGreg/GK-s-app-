@@ -312,6 +312,9 @@ const remoteStore = {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
       throw new Error('notifications_non_disponibles')
     }
+    if (!import.meta.env.VITE_VAPID_PUBLIC_KEY) {
+      throw new Error('notifications_non_configurees')
+    }
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') throw new Error('notifications_refusees')
 
