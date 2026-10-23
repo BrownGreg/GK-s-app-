@@ -138,8 +138,11 @@ const TEXTES = {
     titre_manquant: 'Donne un titre à cette envie.',
     ajouter_envies: 'Ajouter à nos envies',
     annuler: 'Annuler',
+    valider: 'Valider',
 
     photo_erreur_profil: "La photo n'a pas pu être enregistrée.",
+    photo_rogner_titre: 'Ajustez le cadrage',
+    photo_rogner_zoom: 'Zoom',
     statut: 'Statut',
     relie_a: 'Relié·e à {prenom} — tout est partagé entre vous. 💛',
     en_attente_moitie: 'En attente de votre partenaire : partagez le code ci-dessous pour vous relier.',
@@ -328,8 +331,11 @@ const TEXTES = {
     titre_manquant: 'Give this wish a title.',
     ajouter_envies: 'Add to our wishes',
     annuler: 'Cancel',
+    valider: 'Done',
 
     photo_erreur_profil: "The photo couldn't be saved.",
+    photo_rogner_titre: 'Adjust the framing',
+    photo_rogner_zoom: 'Zoom',
     statut: 'Status',
     relie_a: 'Linked with {prenom} — everything is shared between you. 💛',
     en_attente_moitie: 'Waiting for your partner: share the code below to link up.',

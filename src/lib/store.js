@@ -452,7 +452,7 @@ export { isRemote }
 // HEIC/HEIF (format par défaut des iPhone) n'est décodable ni par <img>/<canvas>
 // ni par la plupart des navigateurs non-Safari : on le convertit d'abord en JPEG.
 // Import différé : la librairie (wasm) ne pèse que pour qui envoie vraiment du HEIC.
-async function versJPEGSiHEIC(fichier) {
+export async function versJPEGSiHEIC(fichier) {
   const estHEIC = fichier.type === 'image/heic' || fichier.type === 'image/heif' || /\.hei[cf]$/i.test(fichier.name)
   if (!estHEIC) return fichier
   const { default: heic2any } = await import('heic2any')

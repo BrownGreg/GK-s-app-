@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { store, TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, isRemote, telechargerEvenement, telechargerPhoto } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { IconeLoupe, Etoiles } from './Commun'
+import { RogneurPhoto } from './RogneurPhoto'
 
 function Panneau({ onFermer, children }) {
   const ref = useRef(null)
@@ -593,15 +594,21 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
     onPrenom(prenom.trim())
   }
 
-  const choisirPhoto = async (e) => {
+  const [fichierARogner, setFichierARogner] = useState(null)
+
+  const choisirPhoto = (e) => {
     const fichier = e.target.files?.[0]
     e.target.value = ''
     if (!fichier) return
     setErreur('')
+    setFichierARogner(fichier)
+  }
+
+  const validerRognage = async (imageRognee) => {
+    setFichierARogner(null)
     setEnvoi(true)
     try {
-      const compressee = await compresserImage(fichier, 500, 0.85)
-      await onAvatar(compressee)
+      await onAvatar(imageRognee)
     } catch (err) {
       setErreur(t(err.message) || t('photo_erreur_profil'))
     } finally {
@@ -618,6 +625,7 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
   }
 
   return (
+    <>
     <Panneau onFermer={onFermer}>
       <h2>{t('votre_profil')}</h2>
 
@@ -735,6 +743,15 @@ export function PanneauProfil({ profil, partenaire, onFermer, onAvatar, onPrenom
 
       <button className="btn btn--ghost" onClick={onFermer}>{t('fermer')}</button>
     </Panneau>
+
+    {fichierARogner && (
+      <RogneurPhoto
+        fichier={fichierARogner}
+        onValider={validerRognage}
+        onAnnuler={() => setFichierARogner(null)}
+      />
+    )}
+    </>
   )
 }
 

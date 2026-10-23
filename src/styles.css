@@ -709,6 +709,22 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 }
 .langue-switch button { font-size: 14px; color: var(--ink-soft); }
 .langue-switch button[aria-pressed='true'] { color: var(--ink); font-weight: 600; text-decoration: underline; }
+
+.rogneur-backdrop { z-index: 60; }
+.rogneur { text-align: center; }
+.rogneur__vue {
+  position: relative;
+  width: 260px;
+  height: 260px;
+  margin: 10px auto 18px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--navy-800);
+  touch-action: none;
+  cursor: grab;
+}
+.rogneur__vue img { position: absolute; max-width: none; }
+.rogneur__zoom { display: block; width: 100%; margin: 0 0 18px; }
 .langue-switch span { color: rgba(22, 35, 61, 0.3); font-size: 13px; }
 
 /* ---------- Écrans d'entrée ---------- */
