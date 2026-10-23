@@ -32,6 +32,30 @@ export const TAGS_SUGGERES = [
   'food', 'restaurant', 'festival', 'soirée'
 ]
 
+// Humeurs prédéfinies : un id stable (stocké tel quel sur le profil), un
+// libellé traduit (clé i18n) et une couleur. Les humeurs perso ajoutées par
+// le couple (table humeurs_perso) viennent s'ajouter à cette liste de base.
+export const HUMEURS_BASE = [
+  { id: 'bien', labelKey: 'humeur_bien', couleur: '#C89B3C' },
+  { id: 'amoureux', labelKey: 'humeur_amoureux', couleur: '#E2574C' },
+  { id: 'serein', labelKey: 'humeur_serein', couleur: '#2E7D6F' },
+  { id: 'fatigue', labelKey: 'humeur_fatigue', couleur: '#6B7AA1' },
+  { id: 'pensif', labelKey: 'humeur_pensif', couleur: '#8B5D8F' },
+  { id: 'agace', labelKey: 'humeur_agace', couleur: '#C17A4E' },
+  { id: 'triste', labelKey: 'humeur_triste', couleur: '#4A7FC1' },
+  { id: 'festif', labelKey: 'humeur_festif', couleur: '#D66FA0' }
+]
+
+// Résout un id d'humeur (prédéfinie ou perso) vers { label, couleur }, ou
+// null si l'id ne correspond à rien (humeur supprimée depuis, par ex.).
+export function resoudreHumeur(id, t, humeursPerso = []) {
+  if (!id) return null
+  const base = HUMEURS_BASE.find((h) => h.id === id)
+  if (base) return { label: t(base.labelKey), couleur: base.couleur }
+  const perso = humeursPerso.find((h) => h.id === id)
+  return perso ? { label: perso.label, couleur: perso.couleur } : null
+}
+
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()))
 const codeAleatoire = () => Math.random().toString(36).slice(2, 8).toUpperCase()
 
@@ -77,13 +101,24 @@ const localStore = {
     const profil = LS.read('envies:profil', null)
     if (profil) { profil.prenom = prenom; LS.write('envies:profil', profil) }
   },
-  async majHumeur(humeur) {
+  async majHumeur(humeur, image) {
     const profil = LS.read('envies:profil', null)
     if (profil) {
       profil.humeur = humeur
       profil.humeur_le = new Date().toISOString().slice(0, 10)
+      profil.humeur_image_url = image || null
       LS.write('envies:profil', profil)
     }
+  },
+  async humeursPerso() {
+    return LS.read('envies:humeurs_perso', [])
+  },
+  async ajouterHumeurPerso(label, couleur) {
+    const liste = LS.read('envies:humeurs_perso', [])
+    const humeur = { id: uid(), label, couleur }
+    liste.push(humeur)
+    LS.write('envies:humeurs_perso', liste)
+    return humeur
   },
   async majMessageJour(message) {
     const profil = LS.read('envies:profil', null)
@@ -166,7 +201,7 @@ const remoteStore = {
     if (!user) return null
     const { data, error } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le, couple_id, couples(code_invitation, phrase_perso)')
+      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le, couple_id, couples(code_invitation, phrase_perso)')
       .eq('id', user.id)
       .maybeSingle()
     if (error) throw error
@@ -177,6 +212,7 @@ const remoteStore = {
       avatar_url: data.avatar_url || '',
       humeur: data.humeur || '',
       humeur_le: data.humeur_le,
+      humeur_image_url: data.humeur_image_url || '',
       message_jour: data.message_jour || '',
       message_jour_le: data.message_jour_le,
       couple_id: data.couple_id,
@@ -189,11 +225,30 @@ const remoteStore = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le, message_jour, message_jour_le')
+      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le')
       .eq('couple_id', coupleId)
       .neq('id', user.id)
       .maybeSingle()
     return data || null
+  },
+
+  async humeursPerso() {
+    const { data, error } = await supabase
+      .from('humeurs_perso')
+      .select('id, label, couleur')
+      .order('cree_le', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
+  async ajouterHumeurPerso(label, couleur) {
+    const { data, error } = await supabase
+      .from('humeurs_perso')
+      .insert({ label, couleur })
+      .select('id, label, couleur')
+      .single()
+    if (error) throw error
+    return data
   },
 
   async envoyerLienConnexion(email) {
@@ -277,11 +332,26 @@ const remoteStore = {
     await supabase.from('profils').update({ prenom }).eq('id', user.id)
   },
 
-  async majHumeur(humeur) {
+  async majHumeur(humeur, image) {
     const { data: { user } } = await supabase.auth.getUser()
+    let humeur_image_url = null
+    if (image?.startsWith('data:')) {
+      // Photo perso : on l'héberge nous-mêmes, comme l'avatar.
+      const blob = await (await fetch(image)).blob()
+      const chemin = `humeurs/${user.id}.jpg`
+      const { error } = await supabase.storage
+        .from('photos')
+        .upload(chemin, blob, { contentType: 'image/jpeg', upsert: true })
+      if (error) throw error
+      const { data } = supabase.storage.from('photos').getPublicUrl(chemin)
+      humeur_image_url = `${data.publicUrl}?v=${Date.now()}`
+    } else if (image) {
+      // GIF : déjà hébergé par Giphy, pas besoin de le dupliquer.
+      humeur_image_url = image
+    }
     await supabase
       .from('profils')
-      .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10) })
+      .update({ humeur, humeur_le: new Date().toISOString().slice(0, 10), humeur_image_url })
       .eq('id', user.id)
   },
 

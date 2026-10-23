@@ -3,8 +3,9 @@ import { store, isRemote } from './lib/store'
 import { supabase } from './lib/supabase'
 import { useLangue } from './lib/i18n'
 import { BarreOnglets } from './components/Commun'
-import { FicheEnvie, FormulaireEnvie, PanneauProfil, PanneauRequete } from './components/Panneaux'
+import { FicheEnvie, FormulaireEnvie, PanneauRequete } from './components/Panneaux'
 import { PanneauCalendrier } from './components/Calendrier'
+import ProfilEcran from './screens/ProfilEcran'
 // MapLibre pèse lourd : on ne le charge qu'à l'ouverture de l'onglet Carte.
 const CarteEcran = lazy(() => import('./screens/CarteEcran'))
 import ListeEcran from './screens/ListeEcran'
@@ -205,10 +206,10 @@ export default function App() {
     try { await store.majPrenom(prenom) } catch { signaler(t('prenom_non_enregistre')) }
   }
 
-  const editerHumeur = async (humeur) => {
+  const editerHumeur = async (humeur, image) => {
     const humeur_le = new Date().toISOString().slice(0, 10)
-    setProfil((p) => ({ ...p, humeur, humeur_le }))
-    try { await store.majHumeur(humeur) } catch { /* pas critique, on retentera au prochain changement */ }
+    setProfil((p) => ({ ...p, humeur, humeur_le, humeur_image_url: image || null }))
+    try { await store.majHumeur(humeur, image) } catch { /* pas critique, on retentera au prochain changement */ }
   }
 
   const editerMessageJour = async (message) => {
@@ -314,7 +315,7 @@ export default function App() {
       )}
 
       {profilOuvert && (
-        <PanneauProfil
+        <ProfilEcran
           profil={profil}
           partenaire={partenaire}
           onFermer={() => setProfilOuvert(false)}

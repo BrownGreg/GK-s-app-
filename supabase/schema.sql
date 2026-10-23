@@ -15,15 +15,16 @@ create table if not exists couples (
 -- ---------------------------------------------------------------- profils
 
 create table if not exists profils (
-  id              uuid primary key references auth.users on delete cascade,
-  prenom          text not null,
-  avatar_url      text,
-  humeur          text, -- emoji libre, l'humeur du jour visible par le/la partenaire.
-  humeur_le       date,
-  message_jour    text, -- petit mot à l'attention du/de la partenaire, pour la journée.
-  message_jour_le date,
-  couple_id       uuid references couples on delete set null,
-  cree_le         timestamptz default now()
+  id                uuid primary key references auth.users on delete cascade,
+  prenom            text not null,
+  avatar_url        text,
+  humeur            text, -- id d'une humeur (prédéfinie ou perso), visible par le/la partenaire.
+  humeur_le         date,
+  humeur_image_url  text, -- photo ou GIF facultatif associé à l'humeur du jour.
+  message_jour      text, -- petit mot à l'attention du/de la partenaire, pour la journée.
+  message_jour_le   date,
+  couple_id         uuid references couples on delete set null,
+  cree_le           timestamptz default now()
 );
 
 -- Si la table existait déjà avant l'ajout de la photo de profil.
@@ -36,6 +37,23 @@ alter table profils add column if not exists humeur_le date;
 -- Si la table existait déjà avant l'ajout du message du jour.
 alter table profils add column if not exists message_jour text;
 alter table profils add column if not exists message_jour_le date;
+
+-- Si la table existait déjà avant l'ajout de la photo/GIF sur l'humeur.
+alter table profils add column if not exists humeur_image_url text;
+
+-- ------------------------------------------------------------ humeurs perso
+-- Humeurs personnalisées (libellé + couleur choisis par l'un des deux),
+-- partagées entre les deux membres du couple au même titre que le reste.
+
+create table if not exists humeurs_perso (
+  id        uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references couples on delete cascade,
+  label     text not null,
+  couleur   text not null,
+  cree_le   timestamptz default now()
+);
+
+create index if not exists humeurs_perso_couple_idx on humeurs_perso (couple_id);
 
 -- ------------------------------------------------------------------ items
 
@@ -152,12 +170,17 @@ drop trigger if exists requetes_remplir_couple on requetes;
 create trigger requetes_remplir_couple before insert on requetes
 for each row execute function remplir_couple();
 
+drop trigger if exists humeurs_perso_remplir_couple on humeurs_perso;
+create trigger humeurs_perso_remplir_couple before insert on humeurs_perso
+for each row execute function remplir_couple();
+
 -- ------------------------------------------------------- règles de partage
 
-alter table couples  enable row level security;
-alter table profils  enable row level security;
-alter table items    enable row level security;
-alter table requetes enable row level security;
+alter table couples       enable row level security;
+alter table profils       enable row level security;
+alter table items         enable row level security;
+alter table requetes      enable row level security;
+alter table humeurs_perso enable row level security;
 
 drop policy if exists couples_lecture on couples;
 create policy couples_lecture on couples for select
@@ -207,6 +230,12 @@ create policy requetes_maj on requetes for update using (couple_id = mon_couple(
 
 drop policy if exists requetes_suppression on requetes;
 create policy requetes_suppression on requetes for delete using (couple_id = mon_couple());
+
+drop policy if exists humeurs_perso_lecture on humeurs_perso;
+create policy humeurs_perso_lecture on humeurs_perso for select using (couple_id = mon_couple());
+
+drop policy if exists humeurs_perso_creation on humeurs_perso;
+create policy humeurs_perso_creation on humeurs_perso for insert with check (couple_id = mon_couple());
 
 -- --------------------------------------------------------------- temps réel
 
