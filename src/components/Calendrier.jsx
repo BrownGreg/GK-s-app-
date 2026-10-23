@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { useLangue } from '../lib/i18n'
+import { TYPES } from '../lib/store'
 import { Panneau } from './Panneaux'
+
+const MAX_POINTS = 4
 
 // Lundi en premier, comme le reste de l'Europe.
 const JOURS_SEMAINE_FR = ['L', 'M', 'M', 'J', 'V', 'S', 'D']
@@ -80,7 +83,16 @@ export function PanneauCalendrier({ items, onFermer, onOuvrir }) {
               onClick={() => setJourChoisi(cle === cleJourChoisi ? null : date)}
             >
               {date.getDate()}
-              {items.length > 0 && <span className="calendrier__point" />}
+              {items.length > 0 && (
+                <span className="calendrier__points">
+                  {items.slice(0, MAX_POINTS).map((it) => (
+                    <span
+                      key={it.id}
+                      className={`calendrier__point ${(TYPES[it.type] || TYPES.activite).dot}`}
+                    />
+                  ))}
+                </span>
+              )}
             </button>
           )
         })}
