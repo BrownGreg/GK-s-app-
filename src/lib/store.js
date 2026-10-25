@@ -131,6 +131,7 @@ const localStore = {
   async partenaire() { return null },
   // Mode local : un seul appareil, personne à notifier.
   async envoyerNotification() {},
+  async demanderAssistant() { throw new Error('assistant_indisponible') },
   async activerNotifications() { throw new Error('notifications_non_disponibles') },
   async desactiverNotifications() {},
   async statutNotifications() { return 'indisponible' },
@@ -368,6 +369,12 @@ const remoteStore = {
   async envoyerNotification(titre, corps) {
     try { await supabase.functions.invoke('notifier-partenaire', { body: { titre, corps } }) }
     catch { /* pas grave */ }
+  },
+
+  async demanderAssistant(messages, langue) {
+    const { data, error } = await supabase.functions.invoke('assistant-sorties', { body: { messages, langue } })
+    if (error) throw new Error('assistant_erreur')
+    return data.contenu
   },
 
   async statutNotifications() {

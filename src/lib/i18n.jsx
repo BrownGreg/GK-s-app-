@@ -71,6 +71,16 @@ const TEXTES = {
     onglet_afaire: 'À faire',
     onglet_wishlist: 'Wishlist',
     onglet_requests: 'Requests',
+    onglet_assistant: 'Assistant',
+
+    assistant_titre: 'Assistant sorties',
+    assistant_placeholder: 'Une envie, une ambiance, un budget…',
+    assistant_envoyer_aria: 'Envoyer',
+    assistant_erreur: "L'assistant n'a pas pu répondre, réessayez.",
+    assistant_indisponible: "L'assistant n'est pas disponible en mode local.",
+    assistant_vide_titre: 'Une idée de sortie ?',
+    assistant_vide_texte: 'Décris l’ambiance que vous cherchez, et l’assistant vous proposera quelques pistes.',
+    assistant_reflexion: 'L’assistant réfléchit…',
 
     type_lieu: 'Lieu',
     type_activite: 'Activité',
@@ -310,6 +320,16 @@ const TEXTES = {
     onglet_afaire: 'To-do',
     onglet_wishlist: 'Wishlist',
     onglet_requests: 'Requests',
+    onglet_assistant: 'Assistant',
+
+    assistant_titre: 'Outings assistant',
+    assistant_placeholder: 'A mood, a vibe, a budget…',
+    assistant_envoyer_aria: 'Send',
+    assistant_erreur: 'The assistant could not reply, try again.',
+    assistant_indisponible: 'The assistant is not available in local mode.',
+    assistant_vide_titre: 'Looking for an idea?',
+    assistant_vide_texte: 'Describe the mood you’re after, and the assistant will suggest a few options.',
+    assistant_reflexion: 'The assistant is thinking…',
 
     type_lieu: 'Place',
     type_activite: 'Activity',

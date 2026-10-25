@@ -12,6 +12,7 @@ import ListeEcran from './screens/ListeEcran'
 import AFaireEcran from './screens/AFaireEcran'
 import WishlistEcran from './screens/WishlistEcran'
 import RequestsEcran from './screens/RequestsEcran'
+import AssistantEcran from './screens/AssistantEcran'
 import ConnexionEcran from './screens/ConnexionEcran'
 
 export default function App() {
@@ -282,6 +283,12 @@ export default function App() {
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
       )}
+      {onglet === 'assistant' && (
+        <AssistantEcran
+          avatarUrl={profil.avatar_url}
+          onOuvrirProfil={() => setProfilOuvert(true)}
+        />
+      )}
 
       {message && <div className="toast">{message}</div>}
 
@@ -338,7 +345,7 @@ export default function App() {
         />
       )}
 
-      {onglet !== 'carte' && (
+      {onglet !== 'carte' && onglet !== 'assistant' && (
         <button
           className="fab"
           onClick={() => (onglet === 'requests' ? setPanneauRequete(true) : setFormulaire({ lieu: null }))}

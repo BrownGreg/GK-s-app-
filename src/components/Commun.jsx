@@ -110,7 +110,8 @@ export function BarreOnglets({ actif, onChange, aFaire, requetes }) {
     { cle: 'liste', libelle: t('onglet_liste'), icone: <IconeListe /> },
     { cle: 'afaire', libelle: t('onglet_afaire'), icone: <IconeCheck />, badge: aFaire },
     { cle: 'wishlist', libelle: t('onglet_wishlist'), icone: <IconeEtoile /> },
-    { cle: 'requests', libelle: t('onglet_requests'), icone: <IconeBulle />, badge: requetes }
+    { cle: 'requests', libelle: t('onglet_requests'), icone: <IconeBulle />, badge: requetes },
+    { cle: 'assistant', libelle: t('onglet_assistant'), icone: <IconeAssistant /> }
   ]
   return (
     <nav className="tabbar">
@@ -204,6 +205,15 @@ export function IconeFiltre() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 6h16M7.5 12h9M11 18h2" {...trait} />
+    </svg>
+  )
+}
+
+function IconeAssistant() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3.5l1.5 4.2 4.2 1.5-4.2 1.5-1.5 4.2-1.5-4.2-4.2-1.5 4.2-1.5 1.5-4.2z" {...trait} />
+      <path d="M19 14.5l0.7 2 2 0.7-2 0.7-0.7 2-0.7-2-2-0.7 2-0.7 0.7-2z" {...trait} />
     </svg>
   )
 }

@@ -42,6 +42,35 @@ Le service d'email intégré de Supabase limite le nombre de liens envoyés par 
    ```
 3. Ouvrir le lien affiché dans le navigateur où tourne `npm run dev` — connexion immédiate, sans email, sans limite.
 
+## Déployer les Edge Functions (notifications, assistant)
+
+Deux fonctionnalités passent par une Edge Function Supabase, pour ne jamais exposer
+de clé secrète côté client : les notifications push (`notifier-partenaire`) et
+l'assistant sorties (`assistant-sorties`).
+
+1. Installer la CLI Supabase et se connecter :
+   ```bash
+   npm install -g supabase
+   supabase login
+   supabase link --project-ref xxxxx   # Project Settings → General → Reference ID
+   ```
+2. Déployer les fonctions :
+   ```bash
+   supabase functions deploy notifier-partenaire
+   supabase functions deploy assistant-sorties
+   ```
+3. Définir leurs secrets (jamais dans `.env`, jamais commités) :
+   ```bash
+   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:vous@email.fr
+   supabase secrets set MOONSHOT_API_KEY=...
+   ```
+   La clé `MOONSHOT_API_KEY` est celle du compte Moonshot AI (Kimi) — [platform.moonshot.ai](https://platform.moonshot.ai).
+   Les clés VAPID se génèrent avec `npx web-push generate-vapid-keys`.
+
+Pour chercher un GIF à associer à l'humeur du jour (facultatif), ajouter
+`VITE_GIPHY_API_KEY` à `.env` (et aux variables d'environnement de l'hébergeur) —
+clé gratuite sur [dev.giphy.com](https://dev.giphy.com).
+
 ## Mettre en ligne et installer sur les téléphones
 
 ```bash
