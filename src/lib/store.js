@@ -185,6 +185,14 @@ const localStore = {
     const requetes = LS.read('envies:requetes', []).map((r) => (r.id === id ? { ...r, statut: 'ajoutee' } : r))
     LS.write('envies:requetes', requetes)
   },
+  async validerRequete(id) {
+    const profil = LS.read('envies:profil', null)
+    const requetes = LS.read('envies:requetes', []).map((r) =>
+      r.id === id ? { ...r, statut: 'validee', valide_par: profil?.id } : r
+    )
+    LS.write('envies:requetes', requetes)
+    if (profil) { profil.points = (profil.points || 0) + 1; LS.write('envies:profil', profil) }
+  },
   async supprimerRequete(id) {
     LS.write('envies:requetes', LS.read('envies:requetes', []).filter((r) => r.id !== id))
   },
@@ -202,7 +210,7 @@ const remoteStore = {
     if (!user) return null
     const { data, error } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le, couple_id, couples(code_invitation, phrase_perso)')
+      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le, points, couple_id, couples(code_invitation, phrase_perso)')
       .eq('id', user.id)
       .maybeSingle()
     if (error) throw error
@@ -216,6 +224,7 @@ const remoteStore = {
       humeur_image_url: data.humeur_image_url || '',
       message_jour: data.message_jour || '',
       message_jour_le: data.message_jour_le,
+      points: data.points || 0,
       couple_id: data.couple_id,
       code_invitation: data.couples?.code_invitation,
       phrase_perso: data.couples?.phrase_perso || ''
@@ -226,7 +235,7 @@ const remoteStore = {
     const { data: { user } } = await supabase.auth.getUser()
     const { data } = await supabase
       .from('profils')
-      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le')
+      .select('id, prenom, avatar_url, humeur, humeur_le, humeur_image_url, message_jour, message_jour_le, points')
       .eq('couple_id', coupleId)
       .neq('id', user.id)
       .maybeSingle()
@@ -508,6 +517,13 @@ const remoteStore = {
 
   async marquerRequeteAjoutee(id) {
     await supabase.from('requetes').update({ statut: 'ajoutee' }).eq('id', id)
+  },
+
+  async validerRequete(id) {
+    const { data: { user } } = await supabase.auth.getUser()
+    await supabase.from('requetes').update({ statut: 'validee', valide_par: user.id }).eq('id', id)
+    const { error } = await supabase.rpc('incrementer_points', { delta: 1 })
+    if (error) throw error
   },
 
   async supprimerRequete(id) {

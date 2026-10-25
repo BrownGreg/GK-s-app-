@@ -23,6 +23,7 @@ create table if not exists profils (
   humeur_image_url  text, -- photo ou GIF facultatif associé à l'humeur du jour.
   message_jour      text, -- petit mot à l'attention du/de la partenaire, pour la journée.
   message_jour_le   date,
+  points            integer not null default 0, -- quêtes (requêtes) validées ; ce qu'ils débloquent reste à définir (V3).
   couple_id         uuid references couples on delete set null,
   cree_le           timestamptz default now()
 );
@@ -40,6 +41,9 @@ alter table profils add column if not exists message_jour_le date;
 
 -- Si la table existait déjà avant l'ajout de la photo/GIF sur l'humeur.
 alter table profils add column if not exists humeur_image_url text;
+
+-- Si la table existait déjà avant le système de points.
+alter table profils add column if not exists points integer not null default 0;
 
 -- ------------------------------------------------------------ humeurs perso
 -- Humeurs personnalisées (libellé + couleur choisis par l'un des deux),
@@ -136,11 +140,22 @@ create table if not exists requetes (
   couple_id   uuid not null references couples on delete cascade,
   demande_par uuid references profils on delete set null,
   texte       text not null,
-  statut      text not null default 'ouverte' check (statut in ('ouverte', 'ajoutee')),
+  -- 'validee' : rendue directement comme un service (quête), fait gagner un
+  -- point à qui valide. 'ajoutee' : transformée en tâche dans À faire, ne
+  -- rapporte rien — les deux ne s'excluent pas forcément dans le futur, mais
+  -- pour l'instant un seul des deux chemins s'applique par requête.
+  statut      text not null default 'ouverte' check (statut in ('ouverte', 'ajoutee', 'validee')),
+  valide_par  uuid references profils on delete set null,
   cree_le     timestamptz default now()
 );
 
 create index if not exists requetes_couple_idx on requetes (couple_id, cree_le desc);
+
+-- Si la table existait déjà avant le système de points.
+alter table requetes drop constraint if exists requetes_statut_check;
+alter table requetes add constraint requetes_statut_check
+  check (statut in ('ouverte', 'ajoutee', 'validee'));
+alter table requetes add column if not exists valide_par uuid references profils on delete set null;
 
 -- Le couple_id est déduit du profil : le client n'a pas à l'envoyer.
 create or replace function mon_couple()
@@ -161,6 +176,16 @@ begin
   if new.couple_id is null then new.couple_id := mon_couple(); end if;
   return new;
 end $$;
+
+-- Incrément atomique, toujours sur ses propres points (auth.uid()) : un
+-- update direct depuis le client risquerait une valeur obsolète si les deux
+-- s'y mettent en même temps.
+create or replace function incrementer_points(delta integer)
+returns void
+language sql
+security definer
+set search_path = public
+as $$ update profils set points = points + delta where id = auth.uid() $$;
 
 drop trigger if exists items_remplir_couple on items;
 create trigger items_remplir_couple before insert on items

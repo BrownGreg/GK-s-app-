@@ -190,6 +190,17 @@ export default function App() {
     try { await store.supprimerRequete(id) } catch { signaler(t('suppr_non_enregistree')); rafraichirRequetes() }
   }
 
+  const validerRequete = async (id) => {
+    try {
+      await store.validerRequete(id)
+      setProfil((p) => ({ ...p, points: (p.points || 0) + 1 }))
+      await rafraichirRequetes()
+      signaler(t('requete_validee'))
+    } catch {
+      signaler(t('erreur_generique'))
+    }
+  }
+
   const editerPhrase = async () => {
     const phrase = window.prompt(t('phrase_prompt'), profil.phrase_perso || '')
     if (phrase === null) return
@@ -278,6 +289,7 @@ export default function App() {
           profil={profil}
           partenaire={partenaire}
           onAjouterTodo={ajouterRequeteATodo}
+          onValider={validerRequete}
           onSupprimer={supprimerRequete}
           avatarUrl={profil.avatar_url}
           onOuvrirProfil={() => setProfilOuvert(true)}
