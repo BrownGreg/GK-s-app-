@@ -48,21 +48,22 @@ Deux fonctionnalités passent par une Edge Function Supabase, pour ne jamais exp
 de clé secrète côté client : les notifications push (`notifier-partenaire`) et
 l'assistant sorties (`assistant-sorties`).
 
-1. Installer la CLI Supabase et se connecter :
+1. Installer la CLI Supabase comme dépendance du projet (l'install globale
+   `npm install -g supabase` n'est plus prise en charge) puis se connecter :
    ```bash
-   npm install -g supabase
-   supabase login
-   supabase link --project-ref xxxxx   # Project Settings → General → Reference ID
+   npm install supabase --save-dev
+   npx supabase login
+   npx supabase link --project-ref xxxxx   # Project Settings → General → Reference ID
    ```
 2. Déployer les fonctions :
    ```bash
-   supabase functions deploy notifier-partenaire
-   supabase functions deploy assistant-sorties
+   npx supabase functions deploy notifier-partenaire
+   npx supabase functions deploy assistant-sorties
    ```
 3. Définir leurs secrets (jamais dans `.env`, jamais commités) :
    ```bash
-   supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:vous@email.fr
-   supabase secrets set MOONSHOT_API_KEY=...
+   npx supabase secrets set VAPID_PUBLIC_KEY=... VAPID_PRIVATE_KEY=... VAPID_SUBJECT=mailto:vous@email.fr
+   npx supabase secrets set MOONSHOT_API_KEY=...
    ```
    La clé `MOONSHOT_API_KEY` est celle du compte Moonshot AI (Kimi) — [platform.moonshot.ai](https://platform.moonshot.ai).
    Les clés VAPID se génèrent avec `npx web-push generate-vapid-keys`.
