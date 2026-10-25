@@ -140,12 +140,11 @@ create table if not exists requetes (
   couple_id   uuid not null references couples on delete cascade,
   demande_par uuid references profils on delete set null,
   texte       text not null,
-  -- 'validee' : rendue directement comme un service (quête), fait gagner un
-  -- point à qui valide. 'ajoutee' : transformée en tâche dans À faire, ne
-  -- rapporte rien — les deux ne s'excluent pas forcément dans le futur, mais
-  -- pour l'instant un seul des deux chemins s'applique par requête.
+  -- 'ajoutee' : différée en tâche dans À faire (peut quand même être validée
+  -- ensuite). 'validee' : rendue, fait gagner `points` à qui valide.
   statut      text not null default 'ouverte' check (statut in ('ouverte', 'ajoutee', 'validee')),
   valide_par  uuid references profils on delete set null,
+  points      integer not null default 1 check (points > 0),
   cree_le     timestamptz default now()
 );
 
@@ -156,6 +155,44 @@ alter table requetes drop constraint if exists requetes_statut_check;
 alter table requetes add constraint requetes_statut_check
   check (statut in ('ouverte', 'ajoutee', 'validee'));
 alter table requetes add column if not exists valide_par uuid references profils on delete set null;
+alter table requetes add column if not exists points integer not null default 1;
+alter table requetes drop constraint if exists requetes_points_check;
+alter table requetes add constraint requetes_points_check check (points > 0);
+
+-- ---------------------------------------------------------------- boutique
+-- Chacun·e tient sa propre boutique de récompenses (prix en points, photo
+-- facultative) ; le/la partenaire y puise avec les points gagnés en validant
+-- des requêtes. L'achat est encore à sens unique : les points sont dépensés,
+-- rien n'est automatiquement « livré » — c'est à la personne de tenir sa
+-- promesse, l'app ne fait que suivre le compteur et l'historique.
+
+create table if not exists boutique_articles (
+  id           uuid primary key default gen_random_uuid(),
+  couple_id    uuid not null references couples on delete cascade,
+  proprietaire uuid not null references profils on delete cascade,
+  titre        text not null,
+  description  text default '',
+  prix         integer not null check (prix > 0),
+  image_url    text,
+  actif        boolean not null default true,
+  cree_le      timestamptz default now()
+);
+
+create index if not exists boutique_articles_couple_idx on boutique_articles (couple_id);
+
+create table if not exists boutique_achats (
+  id         uuid primary key default gen_random_uuid(),
+  couple_id  uuid not null references couples on delete cascade,
+  article_id uuid references boutique_articles on delete set null,
+  acheteur   uuid not null references profils on delete cascade,
+  -- Copie du titre/prix au moment de l'achat : l'article peut être modifié
+  -- ou retiré ensuite sans que l'historique ne change de sens.
+  titre      text not null,
+  prix       integer not null,
+  cree_le    timestamptz default now()
+);
+
+create index if not exists boutique_achats_couple_idx on boutique_achats (couple_id, cree_le desc);
 
 -- Le couple_id est déduit du profil : le client n'a pas à l'envoyer.
 create or replace function mon_couple()
@@ -187,6 +224,43 @@ security definer
 set search_path = public
 as $$ update profils set points = points + delta where id = auth.uid() $$;
 
+-- Achat atomique : vérifie l'article, le solde, décrémente les points et
+-- journalise, le tout dans la même transaction pour qu'il n'y ait jamais de
+-- décompte sans achat enregistré (ou l'inverse). security definer parce que
+-- le solde d'un autre profil (vérifié : son propre profil, jamais écrit en
+-- dehors de cette fonction) et la table boutique_achats ne doivent pas être
+-- modifiables autrement que par ce chemin contrôlé.
+create or replace function acheter_article(id_article uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_article boutique_articles%rowtype;
+  v_points  integer;
+begin
+  select * into v_article from boutique_articles where id = id_article and actif = true;
+  if not found then
+    raise exception 'article introuvable';
+  end if;
+  if v_article.couple_id <> mon_couple() then
+    raise exception 'article hors de votre couple';
+  end if;
+  if v_article.proprietaire = auth.uid() then
+    raise exception 'achat de son propre article interdit';
+  end if;
+
+  select points into v_points from profils where id = auth.uid();
+  if v_points < v_article.prix then
+    raise exception 'points insuffisants';
+  end if;
+
+  update profils set points = points - v_article.prix where id = auth.uid();
+  insert into boutique_achats (couple_id, article_id, acheteur, titre, prix)
+  values (v_article.couple_id, v_article.id, auth.uid(), v_article.titre, v_article.prix);
+end $$;
+
 drop trigger if exists items_remplir_couple on items;
 create trigger items_remplir_couple before insert on items
 for each row execute function remplir_couple();
@@ -199,13 +273,19 @@ drop trigger if exists humeurs_perso_remplir_couple on humeurs_perso;
 create trigger humeurs_perso_remplir_couple before insert on humeurs_perso
 for each row execute function remplir_couple();
 
+drop trigger if exists boutique_articles_remplir_couple on boutique_articles;
+create trigger boutique_articles_remplir_couple before insert on boutique_articles
+for each row execute function remplir_couple();
+
 -- ------------------------------------------------------- règles de partage
 
-alter table couples       enable row level security;
-alter table profils       enable row level security;
-alter table items         enable row level security;
-alter table requetes      enable row level security;
-alter table humeurs_perso enable row level security;
+alter table couples           enable row level security;
+alter table profils           enable row level security;
+alter table items             enable row level security;
+alter table requetes          enable row level security;
+alter table boutique_articles enable row level security;
+alter table boutique_achats   enable row level security;
+alter table humeurs_perso     enable row level security;
 
 drop policy if exists couples_lecture on couples;
 create policy couples_lecture on couples for select
@@ -261,6 +341,24 @@ create policy humeurs_perso_lecture on humeurs_perso for select using (couple_id
 
 drop policy if exists humeurs_perso_creation on humeurs_perso;
 create policy humeurs_perso_creation on humeurs_perso for insert with check (couple_id = mon_couple());
+
+drop policy if exists boutique_articles_lecture on boutique_articles;
+create policy boutique_articles_lecture on boutique_articles for select using (couple_id = mon_couple());
+
+drop policy if exists boutique_articles_creation on boutique_articles;
+create policy boutique_articles_creation on boutique_articles for insert
+  with check (couple_id = mon_couple() and proprietaire = auth.uid());
+
+drop policy if exists boutique_articles_maj on boutique_articles;
+create policy boutique_articles_maj on boutique_articles for update using (proprietaire = auth.uid());
+
+drop policy if exists boutique_articles_suppression on boutique_articles;
+create policy boutique_articles_suppression on boutique_articles for delete using (proprietaire = auth.uid());
+
+-- Pas de policy insert : seule la fonction acheter_article (security
+-- definer, donc hors RLS) peut écrire ici — jamais le client directement.
+drop policy if exists boutique_achats_lecture on boutique_achats;
+create policy boutique_achats_lecture on boutique_achats for select using (couple_id = mon_couple());
 
 -- --------------------------------------------------------------- temps réel
 

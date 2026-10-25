@@ -168,12 +168,13 @@ const localStore = {
   async listerRequetes() {
     return LS.read('envies:requetes', []).sort((a, b) => new Date(b.cree_le) - new Date(a.cree_le))
   },
-  async creerRequete(texte) {
+  async creerRequete(texte, points = 1) {
     const profil = LS.read('envies:profil', null)
     const requetes = LS.read('envies:requetes', [])
     const nouvelle = {
       id: uid(),
       texte,
+      points,
       demande_par: profil?.id,
       statut: 'ouverte',
       cree_le: new Date().toISOString()
@@ -187,16 +188,52 @@ const localStore = {
   },
   async validerRequete(id) {
     const profil = LS.read('envies:profil', null)
-    const requetes = LS.read('envies:requetes', []).map((r) =>
-      r.id === id ? { ...r, statut: 'validee', valide_par: profil?.id } : r
+    const requetes = LS.read('envies:requetes', [])
+    const requete = requetes.find((r) => r.id === id)
+    LS.write(
+      'envies:requetes',
+      requetes.map((r) => (r.id === id ? { ...r, statut: 'validee', valide_par: profil?.id } : r))
     )
-    LS.write('envies:requetes', requetes)
-    if (profil) { profil.points = (profil.points || 0) + 1; LS.write('envies:profil', profil) }
+    if (profil) { profil.points = (profil.points || 0) + (requete?.points || 1); LS.write('envies:profil', profil) }
   },
   async supprimerRequete(id) {
     LS.write('envies:requetes', LS.read('envies:requetes', []).filter((r) => r.id !== id))
   },
   ecouterRequetes() { return () => {} },
+
+  async listerBoutique() {
+    return LS.read('envies:boutique', [])
+  },
+  async creerArticleBoutique({ titre, description, prix, image }) {
+    const profil = LS.read('envies:profil', null)
+    const articles = LS.read('envies:boutique', [])
+    const nouveau = {
+      id: uid(),
+      titre,
+      description: description || '',
+      prix,
+      image_url: image || null,
+      proprietaire: profil?.id,
+      actif: true,
+      cree_le: new Date().toISOString()
+    }
+    LS.write('envies:boutique', [nouveau, ...articles])
+    return nouveau
+  },
+  async supprimerArticleBoutique(id) {
+    LS.write('envies:boutique', LS.read('envies:boutique', []).filter((a) => a.id !== id))
+  },
+  async acheterArticle(id) {
+    const profil = LS.read('envies:profil', null)
+    const article = LS.read('envies:boutique', []).find((a) => a.id === id)
+    if (!article) throw new Error('article_introuvable')
+    if (article.proprietaire === profil?.id) throw new Error('achat_propre_article')
+    if ((profil?.points || 0) < article.prix) throw new Error('points_insuffisants')
+    profil.points -= article.prix
+    LS.write('envies:profil', profil)
+  },
+  async listerAchats() { return [] },
+
   ecouter() { return () => {} }
 }
 
@@ -504,11 +541,11 @@ const remoteStore = {
     return data || []
   },
 
-  async creerRequete(texte) {
+  async creerRequete(texte, points = 1) {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
       .from('requetes')
-      .insert({ texte, demande_par: user.id })
+      .insert({ texte, points, demande_par: user.id })
       .select()
       .single()
     if (error) throw error
@@ -519,15 +556,68 @@ const remoteStore = {
     await supabase.from('requetes').update({ statut: 'ajoutee' }).eq('id', id)
   },
 
-  async validerRequete(id) {
+  async validerRequete(id, points = 1) {
     const { data: { user } } = await supabase.auth.getUser()
     await supabase.from('requetes').update({ statut: 'validee', valide_par: user.id }).eq('id', id)
-    const { error } = await supabase.rpc('incrementer_points', { delta: 1 })
+    const { error } = await supabase.rpc('incrementer_points', { delta: points })
     if (error) throw error
   },
 
   async supprimerRequete(id) {
     await supabase.from('requetes').delete().eq('id', id)
+  },
+
+  async listerBoutique() {
+    const { data, error } = await supabase
+      .from('boutique_articles')
+      .select('*')
+      .eq('actif', true)
+      .order('cree_le', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async creerArticleBoutique({ titre, description, prix, image }) {
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('boutique_articles')
+      .insert({ titre, description, prix, proprietaire: user.id })
+      .select()
+      .single()
+    if (error) throw error
+
+    if (image) {
+      const blob = await (await fetch(image)).blob()
+      const chemin = `boutique/${data.id}.jpg`
+      const { error: erreurUpload } = await supabase.storage
+        .from('photos')
+        .upload(chemin, blob, { contentType: 'image/jpeg', upsert: true })
+      if (!erreurUpload) {
+        const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin)
+        const image_url = `${publicUrl.publicUrl}?v=${Date.now()}`
+        await supabase.from('boutique_articles').update({ image_url }).eq('id', data.id)
+        data.image_url = image_url
+      }
+    }
+    return data
+  },
+
+  async supprimerArticleBoutique(id) {
+    await supabase.from('boutique_articles').delete().eq('id', id)
+  },
+
+  async acheterArticle(id) {
+    const { error } = await supabase.rpc('acheter_article', { id_article: id })
+    if (error) throw error
+  },
+
+  async listerAchats() {
+    const { data, error } = await supabase
+      .from('boutique_achats')
+      .select('*')
+      .order('cree_le', { ascending: false })
+    if (error) throw error
+    return data || []
   },
 
   ecouterRequetes(rappel) {

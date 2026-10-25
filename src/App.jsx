@@ -21,6 +21,7 @@ export default function App() {
   const [chargement, setChargement] = useState(true)
   const [items, setItems] = useState(() => lireCache())
   const [requetes, setRequetes] = useState([])
+  const [boutique, setBoutique] = useState([])
   const [onglet, setOnglet] = useState('liste')
   const [fiche, setFiche] = useState(null)
   const [formulaire, setFormulaire] = useState(null) // null | { lieu }
@@ -79,6 +80,15 @@ export default function App() {
     rafraichirRequetes()
     return store.ecouterRequetes(rafraichirRequetes)
   }, [profil?.couple_id, rafraichirRequetes])
+
+  const rafraichirBoutique = useCallback(async () => {
+    try { setBoutique(await store.listerBoutique()) } catch { /* pas critique, on retentera plus tard */ }
+  }, [])
+
+  useEffect(() => {
+    if (!profil?.couple_id) return
+    rafraichirBoutique()
+  }, [profil?.couple_id, rafraichirBoutique])
 
   useEffect(() => {
     if (!isRemote || !profil?.couple_id) { setPartenaire(null); return }
@@ -148,10 +158,10 @@ export default function App() {
     try { await store.supprimerPhoto(id, url) } catch { signaler(t('suppr_photo_non_enregistree')); rafraichir() }
   }
 
-  const creerRequete = async (texte) => {
+  const creerRequete = async (texte, points) => {
     setPanneauRequete(false)
     try {
-      await store.creerRequete(texte)
+      await store.creerRequete(texte, points)
       await rafraichirRequetes()
       store.envoyerNotification(t('notif_nouvelle_demande'), texte)
     } catch (e) {
@@ -190,14 +200,40 @@ export default function App() {
     try { await store.supprimerRequete(id) } catch { signaler(t('suppr_non_enregistree')); rafraichirRequetes() }
   }
 
-  const validerRequete = async (id) => {
+  const validerRequete = async (requete) => {
     try {
-      await store.validerRequete(id)
-      setProfil((p) => ({ ...p, points: (p.points || 0) + 1 }))
+      await store.validerRequete(requete.id, requete.points)
+      setProfil((p) => ({ ...p, points: (p.points || 0) + (requete.points || 1) }))
       await rafraichirRequetes()
       signaler(t('requete_validee'))
     } catch {
       signaler(t('erreur_generique'))
+    }
+  }
+
+  const creerArticleBoutique = async (article) => {
+    try {
+      await store.creerArticleBoutique(article)
+      await rafraichirBoutique()
+      signaler(t('article_ajoute'))
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
+    }
+  }
+
+  const supprimerArticleBoutique = async (id) => {
+    setBoutique((liste) => liste.filter((a) => a.id !== id))
+    try { await store.supprimerArticleBoutique(id) } catch { rafraichirBoutique() }
+  }
+
+  const acheterArticle = async (article) => {
+    try {
+      await store.acheterArticle(article.id)
+      setProfil((p) => ({ ...p, points: (p.points || 0) - article.prix }))
+      store.envoyerNotification(t('notif_achat_titre'), t('notif_achat_corps', { titre: article.titre, prenom: profil.prenom }))
+      signaler(t('article_achete', { titre: article.titre }))
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
     }
   }
 
@@ -286,11 +322,16 @@ export default function App() {
       {onglet === 'requests' && (
         <RequestsEcran
           requetes={requetes}
+          boutique={boutique}
           profil={profil}
           partenaire={partenaire}
           onAjouterTodo={ajouterRequeteATodo}
           onValider={validerRequete}
           onSupprimer={supprimerRequete}
+          onCreerRequete={() => setPanneauRequete(true)}
+          onCreerArticle={creerArticleBoutique}
+          onSupprimerArticle={supprimerArticleBoutique}
+          onAcheter={acheterArticle}
           avatarUrl={profil.avatar_url}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
@@ -357,10 +398,10 @@ export default function App() {
         />
       )}
 
-      {onglet !== 'carte' && onglet !== 'assistant' && (
+      {onglet !== 'carte' && onglet !== 'assistant' && onglet !== 'requests' && (
         <button
           className="fab"
-          onClick={() => (onglet === 'requests' ? setPanneauRequete(true) : setFormulaire({ lieu: null }))}
+          onClick={() => setFormulaire({ lieu: null })}
           aria-label={t('ajouter_envie_aria')}
         >
           +

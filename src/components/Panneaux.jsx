@@ -548,14 +548,17 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
 /* Requests : demande texte libre adressée au/à la partenaire.          */
 /* ------------------------------------------------------------------ */
 
+const VALEURS_POINTS = [1, 2, 3, 5]
+
 export function PanneauRequete({ onFermer, onCreer }) {
   const { t } = useLangue()
   const [texte, setTexte] = useState('')
+  const [points, setPoints] = useState(1)
   const [erreur, setErreur] = useState('')
 
   const valider = () => {
     if (!texte.trim()) { setErreur(t('requete_manquante')); return }
-    onCreer(texte.trim())
+    onCreer(texte.trim(), points)
   }
 
   return (
@@ -569,6 +572,17 @@ export function PanneauRequete({ onFermer, onCreer }) {
           placeholder={t('requete_placeholder')}
           onChange={(e) => { setTexte(e.target.value); setErreur('') }}
         />
+      </div>
+
+      <div className="field">
+        <label>{t('requete_points_label')}</label>
+        <div className="choice">
+          {VALEURS_POINTS.map((n) => (
+            <button key={n} aria-pressed={points === n} onClick={() => setPoints(n)}>
+              +{n}
+            </button>
+          ))}
+        </div>
       </div>
 
       {erreur && <p style={{ color: '#b3352c', fontSize: 13 }}>{erreur}</p>}
