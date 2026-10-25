@@ -100,6 +100,7 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
   const monHumeurId = profil.humeur_le === aujourdhui ? profil.humeur : null
   const monHumeurImage = profil.humeur_le === aujourdhui ? profil.humeur_image_url : null
   const humeurPartenaireId = partenaire?.humeur_le === aujourdhui ? partenaire.humeur : null
+  const humeurPartenaireImage = partenaire?.humeur_le === aujourdhui ? partenaire.humeur_image_url : null
   const messagePartenaire = partenaire?.message_jour_le === aujourdhui ? partenaire.message_jour : null
 
   const monHumeur = resoudreHumeur(monHumeurId, t, humeursPerso)
@@ -233,11 +234,17 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
               <div className="aujourdhui-carte">
                 <span className="aujourdhui-carte__label">{t('profil_toi')}</span>
                 <p>{monHumeur ? monHumeur.label : t('profil_pas_partage')}</p>
+                {monHumeurImage && <img className="aujourdhui-carte__image" src={monHumeurImage} alt="" />}
               </div>
               <div className={`aujourdhui-carte${humeurPartenaire ? '' : ' aujourdhui-carte--vide'}`}>
                 <span className="aujourdhui-carte__label">{partenaire.prenom}</span>
                 {humeurPartenaire ? (
-                  <p>{humeurPartenaire.label}</p>
+                  <>
+                    <p>{humeurPartenaire.label}</p>
+                    {humeurPartenaireImage && (
+                      <img className="aujourdhui-carte__image" src={humeurPartenaireImage} alt="" />
+                    )}
+                  </>
                 ) : (
                   <>
                     <p className="meta" style={{ margin: '2px 0 8px' }}>{t('profil_pas_partage')}</p>

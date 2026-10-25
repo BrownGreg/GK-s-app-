@@ -373,7 +373,14 @@ const remoteStore = {
 
   async demanderAssistant(messages, langue) {
     const { data, error } = await supabase.functions.invoke('assistant-sorties', { body: { messages, langue } })
-    if (error) throw new Error('assistant_erreur')
+    if (error) {
+      // Le détail (texte renvoyé par la Function, souvent l'erreur brute de
+      // l'API Kimi) atterrit dans error.context : précieux pour déboguer,
+      // jamais affiché tel quel à l'utilisateur.
+      const detail = await error.context?.text?.().catch(() => null)
+      console.error('assistant-sorties a échoué :', error.message, detail)
+      throw new Error('assistant_erreur')
+    }
     return data.contenu
   },
 

@@ -925,6 +925,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 .aujourdhui-carte__label { display: block; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 6px; }
 .aujourdhui-carte p { font-family: var(--serif); font-size: 19px; margin: 0; }
 .aujourdhui-carte--vide p { font-family: var(--sans); font-size: 13px; color: var(--cream-dim); }
+.aujourdhui-carte__image { display: block; width: 100%; height: 72px; object-fit: cover; border-radius: 10px; margin-top: 10px; }
 
 .humeur-grille { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
 .humeur-carte {
