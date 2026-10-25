@@ -39,18 +39,29 @@ Strict rules:
 - Stay concise: 2 to 4 suggestions max per reply, each with a short reason.
 - Warm, easygoing tone — never presumptuous or inappropriate.`
 
+// Le navigateur envoie une requête OPTIONS de préflight avant tout POST
+// cross-origin portant des en-têtes custom (Authorization, apikey...) :
+// sans ces en-têtes CORS sur chaque réponse (y compris les erreurs), le
+// fetch est bloqué côté client avant même d'atteindre cette fonction.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
   try {
     const authHeader = req.headers.get('Authorization') ?? ''
     const utilisateur = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } }
     })
     const { data: { user } } = await utilisateur.auth.getUser()
-    if (!user) return new Response('unauthorized', { status: 401 })
+    if (!user) return new Response('unauthorized', { status: 401, headers: corsHeaders })
 
     const { messages, langue } = await req.json()
     if (!Array.isArray(messages) || messages.length === 0) {
-      return new Response('messages manquants', { status: 400 })
+      return new Response('messages manquants', { status: 400, headers: corsHeaders })
     }
 
     // Garde-fou côté coût : on ne renvoie jamais plus que les derniers
@@ -83,15 +94,15 @@ Deno.serve(async (req) => {
 
     if (!reponse.ok) {
       const texte = await reponse.text()
-      return new Response(texte || 'erreur assistant', { status: 502 })
+      return new Response(texte || 'erreur assistant', { status: 502, headers: corsHeaders })
     }
 
     const json = await reponse.json()
     const contenu = json.choices?.[0]?.message?.content || ''
     return new Response(JSON.stringify({ contenu }), {
-      headers: { 'Content-Type': 'application/json' }
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     })
   } catch (err) {
-    return new Response(String(err), { status: 500 })
+    return new Response(String(err), { status: 500, headers: corsHeaders })
   }
 })

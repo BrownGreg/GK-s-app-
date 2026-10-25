@@ -17,27 +17,38 @@ const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:contact@example.c
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 
+// Le navigateur envoie une requête OPTIONS de préflight avant tout POST
+// cross-origin portant des en-têtes custom (Authorization, apikey...) :
+// sans ces en-têtes CORS sur chaque réponse (y compris les erreurs), le
+// fetch est bloqué côté client avant même d'atteindre cette fonction.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
   try {
     const authHeader = req.headers.get('Authorization') ?? ''
     const utilisateur = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } }
     })
     const { data: { user } } = await utilisateur.auth.getUser()
-    if (!user) return new Response('unauthorized', { status: 401 })
+    if (!user) return new Response('unauthorized', { status: 401, headers: corsHeaders })
 
     const { titre, corps } = await req.json()
-    if (!titre) return new Response('titre manquant', { status: 400 })
+    if (!titre) return new Response('titre manquant', { status: 400, headers: corsHeaders })
 
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
     const { data: profil } = await admin
       .from('profils').select('couple_id').eq('id', user.id).maybeSingle()
-    if (!profil?.couple_id) return new Response('pas de couple', { status: 200 })
+    if (!profil?.couple_id) return new Response('pas de couple', { status: 200, headers: corsHeaders })
 
     const { data: partenaire } = await admin
       .from('profils').select('id').eq('couple_id', profil.couple_id).neq('id', user.id).maybeSingle()
-    if (!partenaire) return new Response('pas de partenaire', { status: 200 })
+    if (!partenaire) return new Response('pas de partenaire', { status: 200, headers: corsHeaders })
 
     const { data: abonnements } = await admin
       .from('push_subscriptions').select('*').eq('profil_id', partenaire.id)
@@ -56,8 +67,8 @@ Deno.serve(async (req) => {
       }
     }))
 
-    return new Response('ok', { status: 200 })
+    return new Response('ok', { status: 200, headers: corsHeaders })
   } catch (err) {
-    return new Response(String(err), { status: 500 })
+    return new Response(String(err), { status: 500, headers: corsHeaders })
   }
 })
