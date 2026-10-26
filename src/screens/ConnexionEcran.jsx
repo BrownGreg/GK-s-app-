@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { store, isRemote } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { Entete } from '../components/Commun'
@@ -13,6 +13,15 @@ export default function ConnexionEcran({ profil, onPret }) {
   const [etape, setEtape] = useState(profil ? 'couple' : isRemote ? 'email' : 'prenom')
   const [erreur, setErreur] = useState('')
   const [occupe, setOccupe] = useState(false)
+
+  // `profil` ne devient non-null qu'après coup (onAuthStateChange côté App.jsx) :
+  // sans cet effet, une connexion réussie sans rechargement de page (mot de passe,
+  // lien magique dans le même onglet) laisse `etape` bloquée sur l'écran de connexion.
+  useEffect(() => {
+    if (profil && (etape === 'email' || etape === 'envoye' || etape === 'inscrit')) {
+      setEtape('couple')
+    }
+  }, [profil, etape])
 
   const proteger = async (action) => {
     setErreur('')

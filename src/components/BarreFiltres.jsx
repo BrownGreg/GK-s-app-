@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLangue } from '../lib/i18n'
 import { IconeFiltre } from './Commun'
-import { Panneau } from './Panneaux'
+import { BottomSheet as Panneau } from './BottomSheet'
 
 // Barre compacte (résumé + bouton) qui ouvre un panneau unique regroupant
 // statut, tri/sens et étiquettes — plutôt que d'empiler ces contrôles à même

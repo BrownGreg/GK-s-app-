@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLangue } from '../lib/i18n'
 import { TYPES } from '../lib/store'
-import { Panneau } from './Panneaux'
+import { BottomSheet as Panneau } from './BottomSheet'
 
 const MAX_POINTS = 4
 

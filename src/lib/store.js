@@ -1,5 +1,26 @@
 import { supabase, isRemote } from './supabase'
 
+// Les fonctions Postgres (valider_requete, acheter_article, ...) renvoient
+// leur message d'exception brut (en français) via error.message : on le
+// traduit vers une clé i18n pour que l'appelant garde son t(err.message).
+const MESSAGES_FONCTIONS = {
+  'article introuvable': 'article_introuvable',
+  'article hors de votre couple': 'article_introuvable',
+  'achat de son propre article interdit': 'achat_propre_article',
+  'points insuffisants': 'points_insuffisants',
+  'requête introuvable': 'requete_introuvable',
+  'requête hors de votre couple': 'requete_introuvable',
+  'requête déjà traitée': 'requete_deja_traitee',
+  'validation de sa propre demande interdite': 'validation_propre_demande',
+  'achat introuvable': 'achat_introuvable',
+  'achat déjà réclamé': 'achat_deja_reclame',
+  'achat pas encore réclamé': 'achat_pas_reclame'
+}
+function traduireErreurFonction(error) {
+  const cle = Object.entries(MESSAGES_FONCTIONS).find(([msg]) => error.message?.includes(msg))?.[1]
+  return new Error(cle || 'erreur_generique')
+}
+
 // Les libellés vivent dans le dictionnaire i18n (clé "type_<id>") : ce qui est
 // stocké sur l'item (item.type) est l'id, indépendant de la langue affichée.
 export const TYPES = {
@@ -186,6 +207,9 @@ const localStore = {
     const requetes = LS.read('envies:requetes', []).map((r) => (r.id === id ? { ...r, statut: 'ajoutee' } : r))
     LS.write('envies:requetes', requetes)
   },
+  // Mode local : solo, pas de partenaire — la règle « jamais sa propre
+  // demande » n'a de sens qu'à deux, elle n'est donc appliquée que côté
+  // remoteStore (via valider_requete côté serveur).
   async validerRequete(id) {
     const profil = LS.read('envies:profil', null)
     const requetes = LS.read('envies:requetes', [])
@@ -196,6 +220,13 @@ const localStore = {
     )
     if (profil) { profil.points = (profil.points || 0) + (requete?.points || 1); LS.write('envies:profil', profil) }
   },
+  async relancerRequete(id) {
+    const requetes = LS.read('envies:requetes', [])
+    const deja = requetes.find((r) => r.id === id)?.relance_envoyee
+    if (deja) return false
+    LS.write('envies:requetes', requetes.map((r) => (r.id === id ? { ...r, relance_envoyee: true } : r)))
+    return true
+  },
   async supprimerRequete(id) {
     LS.write('envies:requetes', LS.read('envies:requetes', []).filter((r) => r.id !== id))
   },
@@ -204,7 +235,7 @@ const localStore = {
   async listerBoutique() {
     return LS.read('envies:boutique', [])
   },
-  async creerArticleBoutique({ titre, description, prix, image }) {
+  async creerArticleBoutique({ titre, description, prix, visuelType, visuelCouleur, image, repetable }) {
     const profil = LS.read('envies:profil', null)
     const articles = LS.read('envies:boutique', [])
     const nouveau = {
@@ -212,7 +243,10 @@ const localStore = {
       titre,
       description: description || '',
       prix,
+      visuel_type: visuelType || 'aucun',
+      visuel_couleur: visuelCouleur || null,
       image_url: image || null,
+      repetable: repetable !== false,
       proprietaire: profil?.id,
       actif: true,
       cree_le: new Date().toISOString()
@@ -220,19 +254,55 @@ const localStore = {
     LS.write('envies:boutique', [nouveau, ...articles])
     return nouveau
   },
+  async majArticleBoutique(id, patch) {
+    const articles = LS.read('envies:boutique', [])
+    LS.write('envies:boutique', articles.map((a) => {
+      if (a.id !== id) return a
+      const { image, visuelType, visuelCouleur, ...reste } = patch
+      return {
+        ...a, ...reste,
+        ...(visuelType !== undefined ? { visuel_type: visuelType } : {}),
+        ...(visuelCouleur !== undefined ? { visuel_couleur: visuelCouleur } : {}),
+        ...(image !== undefined ? { image_url: image } : {})
+      }
+    }))
+  },
   async supprimerArticleBoutique(id) {
     LS.write('envies:boutique', LS.read('envies:boutique', []).filter((a) => a.id !== id))
   },
   async acheterArticle(id) {
     const profil = LS.read('envies:profil', null)
-    const article = LS.read('envies:boutique', []).find((a) => a.id === id)
+    const articles = LS.read('envies:boutique', [])
+    const article = articles.find((a) => a.id === id && a.actif)
     if (!article) throw new Error('article_introuvable')
     if (article.proprietaire === profil?.id) throw new Error('achat_propre_article')
     if ((profil?.points || 0) < article.prix) throw new Error('points_insuffisants')
     profil.points -= article.prix
     LS.write('envies:profil', profil)
+    const achats = LS.read('envies:achats', [])
+    LS.write('envies:achats', [{
+      id: uid(), article_id: article.id, acheteur: profil?.id, vendeur: article.proprietaire,
+      titre: article.titre, prix: article.prix, visuel_type: article.visuel_type,
+      visuel_couleur: article.visuel_couleur, image_url: article.image_url,
+      statut: 'ready', cree_le: new Date().toISOString()
+    }, ...achats])
+    if (!article.repetable) {
+      LS.write('envies:boutique', articles.map((a) => (a.id === id ? { ...a, actif: false } : a)))
+    }
   },
-  async listerAchats() { return [] },
+  async listerAchats() {
+    return LS.read('envies:achats', [])
+  },
+  async reclamerAchat(id) {
+    LS.write('envies:achats', LS.read('envies:achats', []).map((a) =>
+      a.id === id && a.statut === 'ready' ? { ...a, statut: 'claimed', reclame_le: new Date().toISOString() } : a
+    ))
+  },
+  async honorerAchat(id) {
+    LS.write('envies:achats', LS.read('envies:achats', []).map((a) =>
+      a.id === id && a.statut === 'claimed' ? { ...a, statut: 'honored', honore_le: new Date().toISOString() } : a
+    ))
+  },
 
   ecouter() { return () => {} }
 }
@@ -240,6 +310,19 @@ const localStore = {
 /* ------------------------------------------------------------------ */
 /* Mode partagé : Supabase.                                            */
 /* ------------------------------------------------------------------ */
+
+// Même chemin qu'avant, écrasé à chaque changement (cache-bust via ?v=) :
+// comme pour l'avatar, un seul fichier par article, pas d'accumulation.
+async function televerserImageArticle(articleId, dataUrl) {
+  const blob = await (await fetch(dataUrl)).blob()
+  const chemin = `boutique/${articleId}.jpg`
+  const { error } = await supabase.storage
+    .from('photos')
+    .upload(chemin, blob, { contentType: 'image/jpeg', upsert: true })
+  if (error) return null
+  const { data } = supabase.storage.from('photos').getPublicUrl(chemin)
+  return `${data.publicUrl}?v=${Date.now()}`
+}
 
 const remoteStore = {
   async profil() {
@@ -556,59 +639,102 @@ const remoteStore = {
     await supabase.from('requetes').update({ statut: 'ajoutee' }).eq('id', id)
   },
 
-  async validerRequete(id, points = 1) {
-    const { data: { user } } = await supabase.auth.getUser()
-    await supabase.from('requetes').update({ statut: 'validee', valide_par: user.id }).eq('id', id)
-    const { error } = await supabase.rpc('incrementer_points', { delta: points })
+  async validerRequete(id) {
+    const { error } = await supabase.rpc('valider_requete', { id_requete: id })
+    if (error) throw traduireErreurFonction(error)
+  },
+
+  // Une seule relance : l'update ne touche une ligne que si elle n'a pas déjà
+  // été envoyée — .select() après coup dit si ça a vraiment eu lieu, sans
+  // avoir besoin d'une fonction dédiée pour un cas aussi simple.
+  async relancerRequete(id) {
+    const { data, error } = await supabase
+      .from('requetes')
+      .update({ relance_envoyee: true })
+      .eq('id', id)
+      .eq('relance_envoyee', false)
+      .select()
     if (error) throw error
+    return (data || []).length > 0
   },
 
   async supprimerRequete(id) {
     await supabase.from('requetes').delete().eq('id', id)
   },
 
+  // Tous les articles du couple, actifs ou non : le carrousel/la grille ne
+  // montrent que ceux du/de la partenaire avec actif=true, mais « Ma
+  // boutique » doit aussi voir ses propres articles masqués pour pouvoir
+  // les remettre en vente.
   async listerBoutique() {
     const { data, error } = await supabase
       .from('boutique_articles')
       .select('*')
-      .eq('actif', true)
       .order('cree_le', { ascending: false })
     if (error) throw error
     return data || []
   },
 
-  async creerArticleBoutique({ titre, description, prix, image }) {
+  async creerArticleBoutique({ titre, description, prix, visuelType, visuelCouleur, image, repetable }) {
     const { data: { user } } = await supabase.auth.getUser()
     const { data, error } = await supabase
       .from('boutique_articles')
-      .insert({ titre, description, prix, proprietaire: user.id })
+      .insert({
+        titre, description, prix, proprietaire: user.id,
+        visuel_type: visuelType || 'aucun',
+        visuel_couleur: visuelType === 'couleur' ? visuelCouleur : null,
+        repetable: repetable !== false
+      })
       .select()
       .single()
     if (error) throw error
 
-    if (image) {
-      const blob = await (await fetch(image)).blob()
-      const chemin = `boutique/${data.id}.jpg`
-      const { error: erreurUpload } = await supabase.storage
-        .from('photos')
-        .upload(chemin, blob, { contentType: 'image/jpeg', upsert: true })
-      if (!erreurUpload) {
-        const { data: publicUrl } = supabase.storage.from('photos').getPublicUrl(chemin)
-        const image_url = `${publicUrl.publicUrl}?v=${Date.now()}`
-        await supabase.from('boutique_articles').update({ image_url }).eq('id', data.id)
-        data.image_url = image_url
-      }
+    if (visuelType === 'photo' && image) {
+      const image_url = await televerserImageArticle(data.id, image)
+      if (image_url) data.image_url = image_url
     }
     return data
   },
 
+  async majArticleBoutique(id, { titre, description, prix, visuelType, visuelCouleur, image, repetable, actif }) {
+    const patch = {}
+    if (titre !== undefined) patch.titre = titre
+    if (description !== undefined) patch.description = description
+    if (prix !== undefined) patch.prix = prix
+    if (repetable !== undefined) patch.repetable = repetable
+    if (actif !== undefined) patch.actif = actif
+    if (visuelType !== undefined) {
+      patch.visuel_type = visuelType
+      patch.visuel_couleur = visuelType === 'couleur' ? visuelCouleur : null
+      if (visuelType !== 'photo') patch.image_url = null
+    }
+    if (Object.keys(patch).length) {
+      const { error } = await supabase.from('boutique_articles').update(patch).eq('id', id)
+      if (error) throw error
+    }
+    if (visuelType === 'photo' && image) {
+      const image_url = await televerserImageArticle(id, image)
+      if (image_url) await supabase.from('boutique_articles').update({ image_url }).eq('id', id)
+    }
+  },
+
+  // Un article déjà acheté garde son historique : on le masque (actif =
+  // false) plutôt que de le supprimer pour de vrai.
   async supprimerArticleBoutique(id) {
-    await supabase.from('boutique_articles').delete().eq('id', id)
+    const { count } = await supabase
+      .from('boutique_achats')
+      .select('id', { count: 'exact', head: true })
+      .eq('article_id', id)
+    if (count > 0) {
+      await supabase.from('boutique_articles').update({ actif: false }).eq('id', id)
+    } else {
+      await supabase.from('boutique_articles').delete().eq('id', id)
+    }
   },
 
   async acheterArticle(id) {
     const { error } = await supabase.rpc('acheter_article', { id_article: id })
-    if (error) throw error
+    if (error) throw traduireErreurFonction(error)
   },
 
   async listerAchats() {
@@ -618,6 +744,16 @@ const remoteStore = {
       .order('cree_le', { ascending: false })
     if (error) throw error
     return data || []
+  },
+
+  async reclamerAchat(id) {
+    const { error } = await supabase.rpc('reclamer_achat', { id_achat: id })
+    if (error) throw traduireErreurFonction(error)
+  },
+
+  async honorerAchat(id) {
+    const { error } = await supabase.rpc('honorer_achat', { id_achat: id })
+    if (error) throw traduireErreurFonction(error)
   },
 
   ecouterRequetes(rappel) {

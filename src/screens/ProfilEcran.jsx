@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { store, isRemote, HUMEURS_BASE, resoudreHumeur } from '../lib/store'
 import { useLangue } from '../lib/i18n'
-import { Panneau } from '../components/Panneaux'
+import { BottomSheet as Panneau } from '../components/BottomSheet'
 import { RogneurPhoto } from '../components/RogneurPhoto'
 import { SelecteurHumeurImage } from '../components/SelecteurHumeurImage'
+import { Switch } from '../components/ui'
 
 const PALETTE_COULEURS = [
   '#C89B3C', '#E2574C', '#2E7D6F', '#6B7AA1', '#8B5D8F',
@@ -340,15 +341,13 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
               <p className="reglage-ligne__label">{t('notifications_titre')}</p>
               <p className="reglage-ligne__desc">{t('notifications_description', { prenom: partenaire.prenom })}</p>
             </div>
-            <button
-              className={`toggle${statutNotif === 'active' ? ' on' : ''}`}
-              role="switch"
-              aria-checked={statutNotif === 'active'}
+            <Switch
+              actif={statutNotif === 'active'}
+              onChange={basculerNotifications}
+              label={t('notifications_titre')}
+              taille="normal"
               disabled={statutNotif === 'refusee'}
-              onClick={basculerNotifications}
-            >
-              <span />
-            </button>
+            />
           </div>
         )}
         {erreurNotif && <p className="erreur-texte">{erreurNotif}</p>}

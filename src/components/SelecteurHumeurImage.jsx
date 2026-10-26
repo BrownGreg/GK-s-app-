@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { compresserImage } from '../lib/store'
 import { useLangue } from '../lib/i18n'
-import { Panneau } from './Panneaux'
+import { BottomSheet as Panneau } from './BottomSheet'
 
 const CLE_GIPHY = import.meta.env.VITE_GIPHY_API_KEY
 

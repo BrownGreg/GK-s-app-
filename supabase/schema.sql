@@ -136,16 +136,18 @@ end $$;
 -- peuvent ensuite être transformées en tâche dans l'onglet À faire.
 
 create table if not exists requetes (
-  id          uuid primary key default gen_random_uuid(),
-  couple_id   uuid not null references couples on delete cascade,
-  demande_par uuid references profils on delete set null,
-  texte       text not null,
+  id               uuid primary key default gen_random_uuid(),
+  couple_id        uuid not null references couples on delete cascade,
+  demande_par      uuid references profils on delete set null,
+  texte            text not null,
   -- 'ajoutee' : différée en tâche dans À faire (peut quand même être validée
-  -- ensuite). 'validee' : rendue, fait gagner `points` à qui valide.
-  statut      text not null default 'ouverte' check (statut in ('ouverte', 'ajoutee', 'validee')),
-  valide_par  uuid references profils on delete set null,
-  points      integer not null default 1 check (points > 0),
-  cree_le     timestamptz default now()
+  -- ensuite). 'validee' : rendue, fait gagner `points` à qui valide — jamais
+  -- le/la demandeur·euse lui/elle-même, voir valider_requete().
+  statut           text not null default 'ouverte' check (statut in ('ouverte', 'ajoutee', 'validee')),
+  valide_par       uuid references profils on delete set null,
+  points           integer not null default 1 check (points > 0),
+  relance_envoyee  boolean not null default false,
+  cree_le          timestamptz default now()
 );
 
 create index if not exists requetes_couple_idx on requetes (couple_id, cree_le desc);
@@ -158,6 +160,7 @@ alter table requetes add column if not exists valide_par uuid references profils
 alter table requetes add column if not exists points integer not null default 1;
 alter table requetes drop constraint if exists requetes_points_check;
 alter table requetes add constraint requetes_points_check check (points > 0);
+alter table requetes add column if not exists relance_envoyee boolean not null default false;
 
 -- ---------------------------------------------------------------- boutique
 -- Chacun·e tient sa propre boutique de récompenses (prix en points, photo
@@ -172,27 +175,78 @@ create table if not exists boutique_articles (
   proprietaire uuid not null references profils on delete cascade,
   titre        text not null,
   description  text default '',
-  prix         integer not null check (prix > 0),
-  image_url    text,
+  prix         integer not null check (prix > 0 and prix <= 99),
+  -- Visuel facultatif : une photo (image_url), une couleur de vignette
+  -- (visuel_couleur), ou aucun des deux (vignette neutre + initiale).
+  visuel_type    text not null default 'aucun' check (visuel_type in ('photo', 'couleur', 'aucun')),
+  visuel_couleur text,
+  image_url      text,
+  -- Répétable : achetable plusieurs fois. Sinon, démis de la vente après
+  -- un seul achat (actif passe à false automatiquement, voir acheter_article).
+  repetable    boolean not null default true,
   actif        boolean not null default true,
   cree_le      timestamptz default now()
 );
 
 create index if not exists boutique_articles_couple_idx on boutique_articles (couple_id);
 
+-- Si la table existait déjà avant le cycle de vie complet des achats.
+alter table boutique_articles add column if not exists visuel_type text not null default 'aucun';
+alter table boutique_articles drop constraint if exists boutique_articles_visuel_type_check;
+alter table boutique_articles add constraint boutique_articles_visuel_type_check
+  check (visuel_type in ('photo', 'couleur', 'aucun'));
+alter table boutique_articles add column if not exists visuel_couleur text;
+alter table boutique_articles add column if not exists repetable boolean not null default true;
+alter table boutique_articles drop constraint if exists boutique_articles_prix_check;
+alter table boutique_articles add constraint boutique_articles_prix_check check (prix > 0 and prix <= 99);
+
 create table if not exists boutique_achats (
   id         uuid primary key default gen_random_uuid(),
   couple_id  uuid not null references couples on delete cascade,
   article_id uuid references boutique_articles on delete set null,
   acheteur   uuid not null references profils on delete cascade,
-  -- Copie du titre/prix au moment de l'achat : l'article peut être modifié
-  -- ou retiré ensuite sans que l'historique ne change de sens.
-  titre      text not null,
-  prix       integer not null,
+  -- Snapshot complet au moment de l'achat : l'article peut être modifié,
+  -- masqué ou retiré ensuite sans que l'historique ne change de sens.
+  vendeur        uuid references profils on delete set null,
+  titre          text not null,
+  prix           integer not null,
+  visuel_type    text not null default 'aucun',
+  visuel_couleur text,
+  image_url      text,
+  -- Cycle de vie : ready (achetée) → claimed (réclamée par qui a acheté)
+  -- → honored (confirmée par qui vend). Voir reclamer_achat/honorer_achat.
+  statut     text not null default 'ready' check (statut in ('ready', 'claimed', 'honored')),
+  reclame_le timestamptz,
+  honore_le  timestamptz,
   cree_le    timestamptz default now()
 );
 
 create index if not exists boutique_achats_couple_idx on boutique_achats (couple_id, cree_le desc);
+
+-- Si la table existait déjà avant le cycle de vie complet des achats.
+alter table boutique_achats add column if not exists vendeur uuid references profils on delete set null;
+alter table boutique_achats add column if not exists visuel_type text not null default 'aucun';
+alter table boutique_achats add column if not exists visuel_couleur text;
+alter table boutique_achats add column if not exists statut text not null default 'ready';
+alter table boutique_achats drop constraint if exists boutique_achats_statut_check;
+alter table boutique_achats add constraint boutique_achats_statut_check
+  check (statut in ('ready', 'claimed', 'honored'));
+alter table boutique_achats add column if not exists reclame_le timestamptz;
+alter table boutique_achats add column if not exists honore_le timestamptz;
+
+-- ------------------------------------------------------- journal de points
+
+create table if not exists points_transactions (
+  id        uuid primary key default gen_random_uuid(),
+  couple_id uuid not null references couples on delete cascade,
+  profil_id uuid not null references profils on delete cascade,
+  delta     integer not null,
+  raison    text not null check (raison in ('demande_faite', 'achat', 'remboursement')),
+  ref_id    uuid,
+  cree_le   timestamptz default now()
+);
+
+create index if not exists points_transactions_profil_idx on points_transactions (profil_id, cree_le desc);
 
 -- Le couple_id est déduit du profil : le client n'a pas à l'envoyer.
 create or replace function mon_couple()
@@ -214,22 +268,44 @@ begin
   return new;
 end $$;
 
--- Incrément atomique, toujours sur ses propres points (auth.uid()) : un
--- update direct depuis le client risquerait une valeur obsolète si les deux
--- s'y mettent en même temps.
-create or replace function incrementer_points(delta integer)
+-- Seul le/la destinataire d'une requête peut la valider (jamais soi-même) :
+-- crédite ses points et journalise, atomiquement.
+create or replace function valider_requete(id_requete uuid)
 returns void
-language sql
+language plpgsql
 security definer
 set search_path = public
-as $$ update profils set points = points + delta where id = auth.uid() $$;
+as $$
+declare
+  v_requete requetes%rowtype;
+begin
+  select * into v_requete from requetes where id = id_requete;
+  if not found then
+    raise exception 'requête introuvable';
+  end if;
+  if v_requete.couple_id <> mon_couple() then
+    raise exception 'requête hors de votre couple';
+  end if;
+  if v_requete.statut <> 'ouverte' then
+    raise exception 'requête déjà traitée';
+  end if;
+  if v_requete.demande_par = auth.uid() then
+    raise exception 'validation de sa propre demande interdite';
+  end if;
 
--- Achat atomique : vérifie l'article, le solde, décrémente les points et
--- journalise, le tout dans la même transaction pour qu'il n'y ait jamais de
--- décompte sans achat enregistré (ou l'inverse). security definer parce que
--- le solde d'un autre profil (vérifié : son propre profil, jamais écrit en
--- dehors de cette fonction) et la table boutique_achats ne doivent pas être
--- modifiables autrement que par ce chemin contrôlé.
+  update requetes set statut = 'validee', valide_par = auth.uid() where id = id_requete;
+  update profils set points = points + v_requete.points where id = auth.uid();
+  insert into points_transactions (couple_id, profil_id, delta, raison, ref_id)
+  values (v_requete.couple_id, auth.uid(), v_requete.points, 'demande_faite', v_requete.id);
+end $$;
+
+-- Achat atomique : vérifie l'article, verrouille la ligne de solde de
+-- l'acheteur (select ... for update — bloque un second appel concurrent le
+-- temps que le premier commit, donc un double-tap ne débite jamais deux
+-- fois), décrémente, journalise et snapshote l'article, le tout dans la
+-- même transaction. security definer parce que le solde (toujours le sien,
+-- jamais celui d'un tiers) et boutique_achats ne doivent être modifiables
+-- que par ce chemin contrôlé.
 create or replace function acheter_article(id_article uuid)
 returns void
 language plpgsql
@@ -251,14 +327,66 @@ begin
     raise exception 'achat de son propre article interdit';
   end if;
 
-  select points into v_points from profils where id = auth.uid();
+  select points into v_points from profils where id = auth.uid() for update;
   if v_points < v_article.prix then
     raise exception 'points insuffisants';
   end if;
 
   update profils set points = points - v_article.prix where id = auth.uid();
-  insert into boutique_achats (couple_id, article_id, acheteur, titre, prix)
-  values (v_article.couple_id, v_article.id, auth.uid(), v_article.titre, v_article.prix);
+  insert into points_transactions (couple_id, profil_id, delta, raison, ref_id)
+  values (v_article.couple_id, auth.uid(), -v_article.prix, 'achat', v_article.id);
+
+  insert into boutique_achats (
+    couple_id, article_id, acheteur, vendeur, titre, prix, visuel_type, visuel_couleur, image_url
+  )
+  values (
+    v_article.couple_id, v_article.id, auth.uid(), v_article.proprietaire,
+    v_article.titre, v_article.prix, v_article.visuel_type, v_article.visuel_couleur, v_article.image_url
+  );
+
+  if not v_article.repetable then
+    update boutique_articles set actif = false where id = v_article.id;
+  end if;
+end $$;
+
+-- Seul·e l'acheteur·euse peut réclamer son bon, et seulement s'il est prêt.
+create or replace function reclamer_achat(id_achat uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_achat boutique_achats%rowtype;
+begin
+  select * into v_achat from boutique_achats where id = id_achat;
+  if not found or v_achat.acheteur <> auth.uid() then
+    raise exception 'achat introuvable';
+  end if;
+  if v_achat.statut <> 'ready' then
+    raise exception 'achat déjà réclamé';
+  end if;
+  update boutique_achats set statut = 'claimed', reclame_le = now() where id = id_achat;
+end $$;
+
+-- Seul·e qui vend peut confirmer avoir honoré le bon, et seulement une fois réclamé.
+create or replace function honorer_achat(id_achat uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_achat boutique_achats%rowtype;
+begin
+  select * into v_achat from boutique_achats where id = id_achat;
+  if not found or v_achat.vendeur <> auth.uid() then
+    raise exception 'achat introuvable';
+  end if;
+  if v_achat.statut <> 'claimed' then
+    raise exception 'achat pas encore réclamé';
+  end if;
+  update boutique_achats set statut = 'honored', honore_le = now() where id = id_achat;
 end $$;
 
 drop trigger if exists items_remplir_couple on items;
@@ -285,6 +413,7 @@ alter table items             enable row level security;
 alter table requetes          enable row level security;
 alter table boutique_articles enable row level security;
 alter table boutique_achats   enable row level security;
+alter table points_transactions enable row level security;
 alter table humeurs_perso     enable row level security;
 
 drop policy if exists couples_lecture on couples;
@@ -330,8 +459,14 @@ create policy requetes_lecture on requetes for select using (couple_id = mon_cou
 drop policy if exists requetes_creation on requetes;
 create policy requetes_creation on requetes for insert with check (couple_id = mon_couple());
 
+-- La validation (statut -> 'validee', crédit de points) ne passe que par
+-- valider_requete() (security definer, donc hors RLS) : un update direct
+-- du client ne peut jamais poser ce statut, ce qui empêche de valider sa
+-- propre demande en contournant la fonction.
 drop policy if exists requetes_maj on requetes;
-create policy requetes_maj on requetes for update using (couple_id = mon_couple());
+create policy requetes_maj on requetes for update
+  using (couple_id = mon_couple())
+  with check (couple_id = mon_couple() and statut <> 'validee');
 
 drop policy if exists requetes_suppression on requetes;
 create policy requetes_suppression on requetes for delete using (couple_id = mon_couple());
@@ -355,10 +490,14 @@ create policy boutique_articles_maj on boutique_articles for update using (propr
 drop policy if exists boutique_articles_suppression on boutique_articles;
 create policy boutique_articles_suppression on boutique_articles for delete using (proprietaire = auth.uid());
 
--- Pas de policy insert : seule la fonction acheter_article (security
--- definer, donc hors RLS) peut écrire ici — jamais le client directement.
+-- Pas de policy insert/update : seules les fonctions acheter_article/
+-- reclamer_achat/honorer_achat (security definer) écrivent ici.
 drop policy if exists boutique_achats_lecture on boutique_achats;
 create policy boutique_achats_lecture on boutique_achats for select using (couple_id = mon_couple());
+
+-- Pas de policy insert : seule valider_requete (security definer) écrit ici.
+drop policy if exists points_transactions_lecture on points_transactions;
+create policy points_transactions_lecture on points_transactions for select using (couple_id = mon_couple());
 
 -- --------------------------------------------------------------- temps réel
 

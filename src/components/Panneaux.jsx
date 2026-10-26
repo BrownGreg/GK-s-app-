@@ -2,32 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { store, TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, telechargerEvenement, telechargerPhoto } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { IconeLoupe, Etoiles } from './Commun'
-
-function Panneau({ onFermer, children }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    const echap = (e) => e.key === 'Escape' && onFermer()
-    window.addEventListener('keydown', echap)
-    ref.current?.focus()
-    return () => window.removeEventListener('keydown', echap)
-  }, [onFermer])
-
-  return (
-    <div className="sheet-backdrop" onClick={onFermer}>
-      <div
-        className="sheet"
-        role="dialog"
-        aria-modal="true"
-        tabIndex={-1}
-        ref={ref}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="sheet__grab" />
-        {children}
-      </div>
-    </div>
-  )
-}
+import { BottomSheet as Panneau } from './BottomSheet'
 
 /* ------------------------------------------------------------------ */
 /* Fiche d'une envie : elle devient la fiche souvenir une fois faite.   */
@@ -548,49 +523,61 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
 /* Requests : demande texte libre adressée au/à la partenaire.          */
 /* ------------------------------------------------------------------ */
 
-const VALEURS_POINTS = [1, 2, 3, 5]
-
-export function PanneauRequete({ onFermer, onCreer }) {
+export function PanneauRequete({ onFermer, onCreer, prenomPartenaire }) {
   const { t } = useLangue()
   const [texte, setTexte] = useState('')
   const [points, setPoints] = useState(1)
-  const [erreur, setErreur] = useState('')
+
+  const VALEURS_POINTS = [
+    { n: 1, cle: 'requete_effort_petit' },
+    { n: 2, cle: 'requete_effort_moyen' },
+    { n: 3, cle: 'requete_effort_gros' }
+  ]
+
+  const peutEnvoyer = texte.trim().length > 0
 
   const valider = () => {
-    if (!texte.trim()) { setErreur(t('requete_manquante')); return }
+    if (!peutEnvoyer) return
     onCreer(texte.trim(), points)
   }
 
   return (
-    <Panneau onFermer={onFermer}>
-      <h2>{t('nouvelle_requete')}</h2>
+    <Panneau onFermer={onFermer} labelAria={t('nouvelle_requete')}>
+      <h2>{prenomPartenaire ? t('demander_a', { prenom: prenomPartenaire }) : t('nouvelle_requete')}</h2>
 
       <div className="field">
+        <label>{t('requete_label')}</label>
         <textarea
           autoFocus
+          rows={2}
+          maxLength={120}
           value={texte}
           placeholder={t('requete_placeholder')}
-          onChange={(e) => { setTexte(e.target.value); setErreur('') }}
+          onChange={(e) => setTexte(e.target.value)}
         />
       </div>
 
       <div className="field">
         <label>{t('requete_points_label')}</label>
-        <div className="choice">
-          {VALEURS_POINTS.map((n) => (
-            <button key={n} aria-pressed={points === n} onClick={() => setPoints(n)}>
-              +{n}
+        <div className="points-options" role="radiogroup" aria-label={t('requete_points_label')}>
+          {VALEURS_POINTS.map((o) => (
+            <button
+              key={o.n}
+              role="radio"
+              aria-checked={points === o.n}
+              className={points === o.n ? 'on' : ''}
+              onClick={() => setPoints(o.n)}
+            >
+              <span className="points-options__valeur">+{o.n}</span>
+              <span className="points-options__hint">{t(o.cle)}</span>
             </button>
           ))}
         </div>
       </div>
 
-      {erreur && <p style={{ color: '#b3352c', fontSize: 13 }}>{erreur}</p>}
-
-      <button className="btn" onClick={valider}>{t('envoyer_requete')}</button>
-      <button className="btn btn--ghost" onClick={onFermer}>{t('annuler')}</button>
+      <button className="btn--navy" disabled={!peutEnvoyer} onClick={valider}>{t('envoyer_requete')}</button>
     </Panneau>
   )
 }
 
-export { Panneau, IconeLoupe }
+export { IconeLoupe }

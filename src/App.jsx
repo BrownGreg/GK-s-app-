@@ -3,7 +3,7 @@ import { store, isRemote } from './lib/store'
 import { supabase } from './lib/supabase'
 import { useLangue } from './lib/i18n'
 import { BarreOnglets } from './components/Commun'
-import { FicheEnvie, FormulaireEnvie, PanneauRequete } from './components/Panneaux'
+import { FicheEnvie, FormulaireEnvie } from './components/Panneaux'
 import { PanneauCalendrier } from './components/Calendrier'
 import ProfilEcran from './screens/ProfilEcran'
 // MapLibre pèse lourd : on ne le charge qu'à l'ouverture de l'onglet Carte.
@@ -12,6 +12,8 @@ import ListeEcran from './screens/ListeEcran'
 import AFaireEcran from './screens/AFaireEcran'
 import WishlistEcran from './screens/WishlistEcran'
 import RequestsEcran from './screens/RequestsEcran'
+import BoutiqueEcran from './screens/BoutiqueEcran'
+import NouvelArticleEcran from './screens/NouvelArticleEcran'
 import AssistantEcran from './screens/AssistantEcran'
 import ConnexionEcran from './screens/ConnexionEcran'
 
@@ -22,10 +24,12 @@ export default function App() {
   const [items, setItems] = useState(() => lireCache())
   const [requetes, setRequetes] = useState([])
   const [boutique, setBoutique] = useState([])
+  const [achats, setAchats] = useState([])
+  const [boutiqueOuverte, setBoutiqueOuverte] = useState(null) // null | 'partenaire' | 'mine' | 'achats'
+  const [articleOuvert, setArticleOuvert] = useState(null) // null | 'nouveau' | article existant à éditer
   const [onglet, setOnglet] = useState('liste')
   const [fiche, setFiche] = useState(null)
   const [formulaire, setFormulaire] = useState(null) // null | { lieu }
-  const [panneauRequete, setPanneauRequete] = useState(false)
   const [message, setMessage] = useState('')
   const [profilOuvert, setProfilOuvert] = useState(false)
   const [calendrierOuvert, setCalendrierOuvert] = useState(false)
@@ -85,10 +89,15 @@ export default function App() {
     try { setBoutique(await store.listerBoutique()) } catch { /* pas critique, on retentera plus tard */ }
   }, [])
 
+  const rafraichirAchats = useCallback(async () => {
+    try { setAchats(await store.listerAchats()) } catch { /* pas critique, on retentera plus tard */ }
+  }, [])
+
   useEffect(() => {
     if (!profil?.couple_id) return
     rafraichirBoutique()
-  }, [profil?.couple_id, rafraichirBoutique])
+    rafraichirAchats()
+  }, [profil?.couple_id, rafraichirBoutique, rafraichirAchats])
 
   useEffect(() => {
     if (!isRemote || !profil?.couple_id) { setPartenaire(null); return }
@@ -159,14 +168,9 @@ export default function App() {
   }
 
   const creerRequete = async (texte, points) => {
-    setPanneauRequete(false)
-    try {
-      await store.creerRequete(texte, points)
-      await rafraichirRequetes()
-      store.envoyerNotification(t('notif_nouvelle_demande'), texte)
-    } catch (e) {
-      signaler(t(e.message) || t('envie_erreur'))
-    }
+    await store.creerRequete(texte, points)
+    await rafraichirRequetes()
+    store.envoyerNotification(t('notif_nouvelle_demande'), texte)
   }
 
   const ajouterRequeteATodo = async (requete) => {
@@ -202,23 +206,39 @@ export default function App() {
 
   const validerRequete = async (requete) => {
     try {
-      await store.validerRequete(requete.id, requete.points)
+      await store.validerRequete(requete.id)
       setProfil((p) => ({ ...p, points: (p.points || 0) + (requete.points || 1) }))
       await rafraichirRequetes()
       signaler(t('requete_validee'))
-    } catch {
-      signaler(t('erreur_generique'))
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
+      rafraichirRequetes()
     }
   }
 
-  const creerArticleBoutique = async (article) => {
+  const relancerRequete = async (requete) => {
     try {
-      await store.creerArticleBoutique(article)
-      await rafraichirBoutique()
-      signaler(t('article_ajoute'))
-    } catch (e) {
-      signaler(t(e.message) || t('erreur_generique'))
-    }
+      const envoyee = await store.relancerRequete(requete.id)
+      if (envoyee) {
+        setRequetes((liste) => liste.map((r) => (r.id === requete.id ? { ...r, relance_envoyee: true } : r)))
+        store.envoyerNotification(t('notif_relance_titre'), t('notif_relance_corps', { texte: requete.texte }))
+      }
+    } catch { /* pas critique, on retentera au prochain rafraîchissement */ }
+  }
+
+  const creerArticleBoutique = async (article) => {
+    await store.creerArticleBoutique(article)
+    await rafraichirBoutique()
+  }
+
+  const majArticleBoutique = async (id, patch) => {
+    await store.majArticleBoutique(id, patch)
+    await rafraichirBoutique()
+  }
+
+  const basculerVisibiliteArticle = async (article) => {
+    setBoutique((liste) => liste.map((a) => (a.id === article.id ? { ...a, actif: !a.actif } : a)))
+    try { await store.majArticleBoutique(article.id, { actif: !article.actif }) } catch { rafraichirBoutique() }
   }
 
   const supprimerArticleBoutique = async (id) => {
@@ -232,8 +252,33 @@ export default function App() {
       setProfil((p) => ({ ...p, points: (p.points || 0) - article.prix }))
       store.envoyerNotification(t('notif_achat_titre'), t('notif_achat_corps', { titre: article.titre, prenom: profil.prenom }))
       signaler(t('article_achete', { titre: article.titre }))
+      await Promise.all([rafraichirBoutique(), rafraichirAchats()])
     } catch (e) {
       signaler(t(e.message) || t('erreur_generique'))
+    }
+  }
+
+  const reclamerAchat = async (achat) => {
+    try {
+      await store.reclamerAchat(achat.id)
+      setAchats((liste) => liste.map((a) => (a.id === achat.id ? { ...a, statut: 'claimed' } : a)))
+      store.envoyerNotification(t('notif_reclame_titre'), t('notif_reclame_corps', { titre: achat.titre, prenom: profil.prenom }))
+      signaler(t('achat_reclame'))
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
+      rafraichirAchats()
+    }
+  }
+
+  const honorerAchat = async (achat) => {
+    try {
+      await store.honorerAchat(achat.id)
+      setAchats((liste) => liste.map((a) => (a.id === achat.id ? { ...a, statut: 'honored' } : a)))
+      store.envoyerNotification(t('notif_honore_titre'), t('notif_honore_corps', { titre: achat.titre, prenom: profil.prenom }))
+      signaler(t('achat_honore'))
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
+      rafraichirAchats()
     }
   }
 
@@ -327,11 +372,11 @@ export default function App() {
           partenaire={partenaire}
           onAjouterTodo={ajouterRequeteATodo}
           onValider={validerRequete}
+          onRelancer={relancerRequete}
           onSupprimer={supprimerRequete}
-          onCreerRequete={() => setPanneauRequete(true)}
-          onCreerArticle={creerArticleBoutique}
-          onSupprimerArticle={supprimerArticleBoutique}
+          onCreerRequete={creerRequete}
           onAcheter={acheterArticle}
+          onOuvrirBoutique={() => setBoutiqueOuverte('partenaire')}
           avatarUrl={profil.avatar_url}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
@@ -386,9 +431,35 @@ export default function App() {
         />
       )}
 
-      {panneauRequete && (
-        <PanneauRequete onFermer={() => setPanneauRequete(false)} onCreer={creerRequete} />
+      {boutiqueOuverte && (
+        <BoutiqueEcran
+          ongletInitial={boutiqueOuverte}
+          profil={profil}
+          partenaire={partenaire}
+          boutique={boutique}
+          achats={achats}
+          onFermer={() => setBoutiqueOuverte(null)}
+          onAcheter={acheterArticle}
+          onReclamer={reclamerAchat}
+          onHonorer={honorerAchat}
+          onToggleVisibilite={basculerVisibiliteArticle}
+          onSupprimerArticle={supprimerArticleBoutique}
+          onNouvelArticle={() => setArticleOuvert('nouveau')}
+          onEditerArticle={(article) => setArticleOuvert(article)}
+        />
       )}
+
+      {articleOuvert && (
+        <NouvelArticleEcran
+          article={articleOuvert === 'nouveau' ? null : articleOuvert}
+          partenaire={partenaire}
+          onFermer={() => setArticleOuvert(null)}
+          onCreer={creerArticleBoutique}
+          onModifier={majArticleBoutique}
+          onSupprimer={async (id) => { await supprimerArticleBoutique(id); setArticleOuvert(null) }}
+        />
+      )}
+
 
       {calendrierOuvert && (
         <PanneauCalendrier
