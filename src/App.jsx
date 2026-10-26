@@ -153,10 +153,20 @@ export default function App() {
     try { await store.supprimer(id) } catch { signaler(t('suppr_non_enregistree')); rafraichir() }
   }
 
+  // `store.ajouterPhoto` persiste déjà la photo côté serveur/local (lecture-fusion-écriture
+  // sur la liste actuelle). On ne fait ici que répercuter l'ajout dans l'état React, via des
+  // mises à jour fonctionnelles : lire `items`/`fiche` depuis leur closure serait périmé dès
+  // qu'on ajoute plusieurs photos à la suite (sélection multiple), puisque React n'a pas
+  // forcément re-rendu entre deux appels.
   const ajouterPhoto = async (id, dataUrl) => {
     const url = await store.ajouterPhoto(id, dataUrl)
-    const titre = items.find((i) => i.id === id)?.titre || ''
-    modifier(id, { photos: [...(items.find((i) => i.id === id)?.photos || []), url] })
+    let titre = ''
+    setItems((liste) => liste.map((i) => {
+      if (i.id !== id) return i
+      titre = i.titre
+      return { ...i, photos: [...(i.photos || []), url] }
+    }))
+    setFiche((f) => (f && f.id === id ? { ...f, photos: [...(f.photos || []), url] } : f))
     store.envoyerNotification(t('notif_nouvelle_photo'), titre)
   }
 

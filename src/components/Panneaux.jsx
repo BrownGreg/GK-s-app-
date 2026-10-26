@@ -22,20 +22,23 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
       date_faite: !item.fait ? new Date().toISOString().slice(0, 10) : null
     })
 
-  const choisirPhoto = async (e) => {
-    const fichier = e.target.files?.[0]
+  const choisirPhotos = async (e) => {
+    const fichiers = Array.from(e.target.files || [])
     e.target.value = ''
-    if (!fichier) return
+    if (fichiers.length === 0) return
     setErreur('')
     setEnvoiPhoto(true)
-    try {
-      const compressee = await compresserImage(fichier)
-      await onAjouterPhoto(item.id, compressee)
-    } catch (err) {
-      setErreur(t(err.message) || t('photo_erreur'))
-    } finally {
-      setEnvoiPhoto(false)
+    // Envoi une photo à la fois : chaque envoi relit puis réécrit la liste
+    // complète côté store, un envoi en parallèle ferait perdre des photos.
+    for (const fichier of fichiers) {
+      try {
+        const compressee = await compresserImage(fichier)
+        await onAjouterPhoto(item.id, compressee)
+      } catch (err) {
+        setErreur(t(err.message) || t('photo_erreur'))
+      }
     }
+    setEnvoiPhoto(false)
   }
 
   const basculerLike = (url) => {
@@ -182,7 +185,13 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
               })}
               <label>
                 {envoiPhoto ? '…' : '+'}
-                <input type="file" accept="image/*,.heic,.heif" onChange={choisirPhoto} disabled={envoiPhoto} />
+                <input
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  multiple
+                  onChange={choisirPhotos}
+                  disabled={envoiPhoto}
+                />
               </label>
             </div>
             {erreur && <p style={{ color: '#b3352c', fontSize: 13, marginTop: 8 }}>{erreur}</p>}
