@@ -5,7 +5,7 @@ import { BottomSheet as Panneau } from '../components/BottomSheet'
 import { RogneurPhoto } from '../components/RogneurPhoto'
 import { SelecteurHumeurImage } from '../components/SelecteurHumeurImage'
 import { Switch } from '../components/ui'
-import { EntreeCapsules } from '../components/Commun'
+import { compterAOuvrir } from '../lib/capsulesLogic'
 
 const PALETTE_COULEURS = [
   '#C89B3C', '#E2574C', '#2E7D6F', '#6B7AA1', '#8B5D8F',
@@ -196,7 +196,19 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
       <header className="profil-ecran__entete">
         <button className="profil-ecran__rond" onClick={onFermer} aria-label={t('retour_aria')}>‹</button>
         <h1>{t('profil_page_titre')}</h1>
-        <button className="profil-ecran__rond" onClick={editerPrenom} aria-label={t('votre_prenom')}>✎</button>
+        <div className="profil-ecran__actions">
+          {onOuvrirCapsules && (
+            <button
+              className={`profil-ecran__rond${compterAOuvrir(capsules, profil.id) > 0 ? ' profil-ecran__rond--nouveau' : ''}`}
+              onClick={onOuvrirCapsules}
+              aria-label={t('capsules_entree_titre')}
+              title={t('capsules_entree_titre')}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
+            </button>
+          )}
+          <button className="profil-ecran__rond" onClick={editerPrenom} aria-label={t('votre_prenom')}>✎</button>
+        </div>
       </header>
 
       <div className="profil-ecran__corps">
@@ -223,10 +235,6 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
         </div>
 
         {erreur && <p className="erreur-texte">{erreur}</p>}
-
-        {onOuvrirCapsules && (
-          <EntreeCapsules capsules={capsules} profilId={profil.id} onClick={onOuvrirCapsules} />
-        )}
 
         {isRemote && partenaire && (
           <>

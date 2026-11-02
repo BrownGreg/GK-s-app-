@@ -1,6 +1,5 @@
 import { TYPES, moyenneNote } from '../lib/store'
 import { useLangue } from '../lib/i18n'
-import { compterAOuvrir, repartirCapsules, tempsRestant } from '../lib/capsulesLogic'
 
 // L'app change de nom à chaque rechargement — tiré une seule fois par
 // chargement de page (portée module), pas à chaque rendu.
@@ -14,34 +13,6 @@ export function BoutonProfil({ avatarUrl, onClick, pastille = false }) {
   return (
     <button className={`header__profil${pastille ? ' header__profil--pastille' : ''}`} onClick={onClick} title={t('votre_profil')} aria-label={t('votre_profil')}>
       {avatarUrl ? <img src={avatarUrl} alt="" /> : <IconeProfil />}
-    </button>
-  )
-}
-
-// Carte d'accès aux capsules temporelles (dans le profil).
-export function EntreeCapsules({ capsules, profilId, onClick }) {
-  const { t, tn, langue } = useLangue()
-  const capsulesAOuvrir = compterAOuvrir(capsules, profilId)
-  const prochaineCapsule = repartirCapsules(capsules, profilId).enAttente[0]
-  const sousTitreCapsules = capsulesAOuvrir > 0
-    ? tn('capsules_entree_a_ouvrir', capsulesAOuvrir)
-    : prochaineCapsule
-      ? t('capsules_entree_prochaine', { quand: tempsRestant(prochaineCapsule.ouvre_le, langue) })
-      : t('capsules_entree_ecrire')
-
-  return (
-    <button
-      className={`capsules-entree${capsulesAOuvrir > 0 ? ' capsules-entree--nouvelle' : ''}`}
-      onClick={onClick}
-    >
-      <span className="capsules-entree__icone">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
-      </span>
-      <span className="capsules-entree__textes">
-        <span className="capsules-entree__titre">{t('capsules_entree_titre')}</span>
-        <span className="capsules-entree__sous-titre">{sousTitreCapsules}</span>
-      </span>
-      <svg className="capsules-entree__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
     </button>
   )
 }
