@@ -4,7 +4,7 @@ import { useLangue } from '../lib/i18n'
 import { CarteEnvie, Vide, BoutonProfil } from '../components/Commun'
 import { BarreFiltres } from '../components/BarreFiltres'
 
-export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil, onOuvrirCalendrier }) {
+export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, pastilleProfil, onOuvrirProfil, onOuvrirCalendrier }) {
   const { t, tn } = useLangue()
   const [tri, setTri] = useState('date')
   const [tagsSelectionnes, setTagsSelectionnes] = useState([])
@@ -41,7 +41,7 @@ export default function AFaireEcran({ items, onOuvrir, onBasculer, avatarUrl, on
   return (
     <div className="screen">
       <div style={{ position: 'relative' }}>
-        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} pastille={pastilleProfil} onClick={onOuvrirProfil} />}
         {onOuvrirCalendrier && (
           <button className="calendrier-ouvrir" onClick={onOuvrirCalendrier} aria-label={t('calendrier_aria')}>
             📅

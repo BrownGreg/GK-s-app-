@@ -5,6 +5,7 @@ import { BottomSheet as Panneau } from '../components/BottomSheet'
 import { RogneurPhoto } from '../components/RogneurPhoto'
 import { SelecteurHumeurImage } from '../components/SelecteurHumeurImage'
 import { Switch } from '../components/ui'
+import { EntreeCapsules } from '../components/Commun'
 
 const PALETTE_COULEURS = [
   '#C89B3C', '#E2574C', '#2E7D6F', '#6B7AA1', '#8B5D8F',
@@ -79,7 +80,7 @@ function AjoutHumeur({ onValider, onAnnuler }) {
   )
 }
 
-export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur, onMessageJour }) {
+export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur, onMessageJour, capsules = [], onOuvrirCapsules }) {
   const { t, langue, changerLangue } = useLangue()
 
   const [erreur, setErreur] = useState('')
@@ -222,6 +223,10 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
         </div>
 
         {erreur && <p className="erreur-texte">{erreur}</p>}
+
+        {onOuvrirCapsules && (
+          <EntreeCapsules capsules={capsules} profilId={profil.id} onClick={onOuvrirCapsules} />
+        )}
 
         {isRemote && partenaire && (
           <>

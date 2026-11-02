@@ -23,7 +23,7 @@ function comparer(a, b, tri, direction) {
   return signe * (da - db)
 }
 
-export default function ListeEcran({ items, phrase, onEditPhrase, avatarUrl, onOuvrirProfil, onOuvrir, onBasculer }) {
+export default function ListeEcran({ items, phrase, onEditPhrase, avatarUrl, pastilleProfil, onOuvrirProfil, onOuvrir, onBasculer }) {
   const { t, tn } = useLangue()
   const [filtre, setFiltre] = useState('tous')
   const [tri, setTri] = useState('date')
@@ -57,7 +57,7 @@ export default function ListeEcran({ items, phrase, onEditPhrase, avatarUrl, onO
 
   return (
     <div className="screen">
-      <Entete phrase={phrase} onEditPhrase={onEditPhrase} avatarUrl={avatarUrl} onOuvrirProfil={onOuvrirProfil} />
+      <Entete phrase={phrase} onEditPhrase={onEditPhrase} avatarUrl={avatarUrl} pastilleProfil={pastilleProfil} onOuvrirProfil={onOuvrirProfil} />
 
       <BarreFiltres
         resume={tn('envie', visibles.length)}

@@ -3,7 +3,7 @@ import { store, isRemote } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { Vide, BoutonProfil } from '../components/Commun'
 
-export default function AssistantEcran({ avatarUrl, onOuvrirProfil }) {
+export default function AssistantEcran({ avatarUrl, pastilleProfil, onOuvrirProfil }) {
   const { t, langue } = useLangue()
   const [messages, setMessages] = useState([]) // { role: 'user' | 'assistant', content }
   const [texte, setTexte] = useState('')
@@ -36,7 +36,7 @@ export default function AssistantEcran({ avatarUrl, onOuvrirProfil }) {
   return (
     <div className="screen">
       <div style={{ position: 'relative' }}>
-        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} pastille={pastilleProfil} onClick={onOuvrirProfil} />}
         <h1 className="header__title" style={{ fontSize: 40, textAlign: 'center', marginBottom: 20 }}>
           {t('assistant_titre')}
         </h1>

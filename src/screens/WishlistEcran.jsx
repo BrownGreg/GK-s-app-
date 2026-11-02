@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useLangue } from '../lib/i18n'
 import { CarteEnvie, Vide, BoutonProfil } from '../components/Commun'
 
-export default function WishlistEcran({ items, onOuvrir, onBasculer, avatarUrl, onOuvrirProfil }) {
+export default function WishlistEcran({ items, onOuvrir, onBasculer, avatarUrl, pastilleProfil, onOuvrirProfil }) {
   const { t } = useLangue()
   const [filtre, setFiltre] = useState('tous')
 
@@ -19,7 +19,7 @@ export default function WishlistEcran({ items, onOuvrir, onBasculer, avatarUrl, 
   return (
     <div className="screen">
       <div style={{ position: 'relative' }}>
-        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} pastille={pastilleProfil} onClick={onOuvrirProfil} />}
         <h1 className="header__title" style={{ fontSize: 44, textAlign: 'center', marginBottom: 20 }}>
           {t('wishlist_titre')}
         </h1>

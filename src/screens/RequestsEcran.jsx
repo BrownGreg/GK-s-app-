@@ -5,14 +5,12 @@ import { PointsPill, SegmentedTabs } from '../components/ui'
 import { ShopItemCard, SheetAchat } from '../components/Boutique'
 import { PanneauRequete } from '../components/Panneaux'
 import { repartirRequetes, calculerManque } from '../lib/requetesLogic'
-import { compterAOuvrir, repartirCapsules, tempsRestant } from '../lib/capsulesLogic'
 
 export default function RequestsEcran({
   requetes, boutique, profil, partenaire,
   onAjouterTodo, onValider, onRelancer, onSupprimer,
   onCreerRequete, onAcheter, onOuvrirBoutique,
-  capsules = [], onOuvrirCapsules,
-  avatarUrl, onOuvrirProfil
+  avatarUrl, pastilleProfil, onOuvrirProfil
 }) {
   const { t, tn, langue } = useLangue()
   const [filtre, setFiltre] = useState('pour_toi')
@@ -45,14 +43,6 @@ export default function RequestsEcran({
     faites: ['requetes_vide_faites_titre', 'requetes_vide_faites_texte']
   }[filtre]
 
-  const capsulesAOuvrir = compterAOuvrir(capsules, profil.id)
-  const prochaineCapsule = repartirCapsules(capsules, profil.id).enAttente[0]
-  const sousTitreCapsules = capsulesAOuvrir > 0
-    ? tn('capsules_entree_a_ouvrir', capsulesAOuvrir)
-    : prochaineCapsule
-      ? t('capsules_entree_prochaine', { quand: tempsRestant(prochaineCapsule.ouvre_le, langue) })
-      : t('capsules_entree_ecrire')
-
   const demander = async (texte, points) => {
     await onCreerRequete(texte, points)
     setSheetOuvert(false)
@@ -64,24 +54,9 @@ export default function RequestsEcran({
       <header className="requests-entete">
         <h1>{t('requests_titre')}</h1>
         <PointsPill solde={profil.points || 0} labelAria={t('solde_aria')} />
-        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} onClick={onOuvrirProfil} />}
+        {onOuvrirProfil && <BoutonProfil avatarUrl={avatarUrl} pastille={pastilleProfil} onClick={onOuvrirProfil} />}
       </header>
 
-      {onOuvrirCapsules && (
-        <button
-          className={`capsules-entree${capsulesAOuvrir > 0 ? ' capsules-entree--nouvelle' : ''}`}
-          onClick={onOuvrirCapsules}
-        >
-          <span className="capsules-entree__icone">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
-          </span>
-          <span className="capsules-entree__textes">
-            <span className="capsules-entree__titre">{t('capsules_entree_titre')}</span>
-            <span className="capsules-entree__sous-titre">{sousTitreCapsules}</span>
-          </span>
-          <svg className="capsules-entree__chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-        </button>
-      )}
 
       {partenaire && (
         <section aria-label={t('boutique_de', { prenom: partenaire.prenom })} className="requests-boutique">

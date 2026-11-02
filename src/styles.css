@@ -1830,6 +1830,10 @@ input.palette__perso {
 .capsules-entree__sous-titre { font-size: 13px; color: var(--ink-onnavy); }
 .capsules-entree--nouvelle .capsules-entree__sous-titre { color: var(--gold); font-weight: 500; }
 .capsules-entree__chevron { flex: none; color: var(--ink-onnavy); }
+.profil-ecran .capsules-entree { width: 100%; margin: 18px 0 0; }
+
+/* Une capsule attend dans le profil : anneau doré autour de l'avatar. */
+.header__profil--pastille { border: 2px solid var(--gold); box-shadow: 0 0 0 3px rgba(212, 174, 92, 0.3); }
 
 .capsules-corps { padding-bottom: calc(var(--safe-bottom) + 110px); }
 

@@ -392,6 +392,8 @@ export default function App() {
   /* ---------- Rendu ---------- */
 
   if (chargement) return <div className="gate"><p>{t('un_instant')}</p></div>
+  const capsulesAOuvrir = profil ? compterAOuvrir(capsules, profil.id) : 0
+
   if (!profil || !profil.couple_id) return <ConnexionEcran profil={profil} onPret={setProfil} />
 
   const sorties = items.filter((i) => !i.wishlist)
@@ -415,6 +417,7 @@ export default function App() {
           phrase={profil.phrase_perso}
           onEditPhrase={editerPhrase}
           avatarUrl={profil.avatar_url}
+          pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
           onOuvrir={setFiche}
           onBasculer={basculer}
@@ -426,6 +429,7 @@ export default function App() {
           onOuvrir={setFiche}
           onBasculer={basculer}
           avatarUrl={profil.avatar_url}
+          pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
           onOuvrirCalendrier={() => setCalendrierOuvert(true)}
         />
@@ -436,6 +440,7 @@ export default function App() {
           onOuvrir={setFiche}
           onBasculer={basculer}
           avatarUrl={profil.avatar_url}
+          pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
       )}
@@ -452,15 +457,15 @@ export default function App() {
           onCreerRequete={creerRequete}
           onAcheter={acheterArticle}
           onOuvrirBoutique={() => setBoutiqueOuverte('partenaire')}
-          capsules={capsules}
-          onOuvrirCapsules={() => setCapsulesOuvertes(true)}
           avatarUrl={profil.avatar_url}
+          pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
       )}
       {onglet === 'assistant' && (
         <AssistantEcran
           avatarUrl={profil.avatar_url}
+          pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
       )}
@@ -471,7 +476,7 @@ export default function App() {
         actif={onglet}
         onChange={setOnglet}
         aFaire={restants}
-        requetes={requetes.filter((r) => r.statut === 'ouverte').length + compterAOuvrir(capsules, profil.id)}
+        requetes={requetes.filter((r) => r.statut === 'ouverte').length}
       />
 
       {fiche && (
@@ -505,6 +510,8 @@ export default function App() {
           onPrenom={editerPrenom}
           onHumeur={editerHumeur}
           onMessageJour={editerMessageJour}
+          capsules={capsules}
+          onOuvrirCapsules={() => setCapsulesOuvertes(true)}
         />
       )}
 
