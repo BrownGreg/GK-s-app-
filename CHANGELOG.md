@@ -1,5 +1,33 @@
 # Changelog
 
+## 2026-11-02 — Capsules temporelles
+
+Depuis l'onglet **Demandes**, une nouvelle entrée « Capsules temporelles »
+permet d'écrire un message au/à la partenaire qui ne pourra être lu qu'à
+une date choisie (raccourcis 1 mois / 6 mois / 1 an, ou date et heure
+précises).
+
+- **Scellée** (par défaut) : le/la destinataire voit qu'une capsule
+  l'attend et dans combien de temps elle s'ouvre, sans pouvoir la lire.
+- **Surprise** : il/elle ne sait même pas qu'elle existe avant la date.
+- Une fois la date passée, la capsule apparaît comme « Nouvelle » (badge
+  sur l'onglet Demandes). L'auteur·e voit quand elle a été lue.
+- Une capsule ne peut plus être modifiée une fois scellée ; l'auteur·e
+  peut seulement la retirer tant qu'elle n'est pas ouverte.
+
+Le verrou est tenu par la base (RLS + heure du serveur) : le texte d'une
+capsule scellée n'est jamais envoyé au téléphone du/de la destinataire,
+changer l'heure de l'appareil ne débloque rien. Couvert par
+`supabase/tests/capsules.test.sql`.
+
+Notifications : à la création (sauf surprise) et à la lecture. Pas encore
+de notification push au moment exact de l'ouverture si l'app est fermée :
+la capsule apparaît à la prochaine ouverture de l'app.
+
+**Migration requise** : réexécuter `supabase/schema.sql` dans l'éditeur SQL
+de Supabase (table `capsules`, fonctions `capsules_scellees` et
+`ouvrir_capsule`).
+
 ## 2026-10-05 — Tri, date à la création, humeur du jour, outil de dev
 
 ### Tri dans l'onglet "À faire"

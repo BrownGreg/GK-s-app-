@@ -15,16 +15,20 @@ import RequestsEcran from './screens/RequestsEcran'
 import BoutiqueEcran from './screens/BoutiqueEcran'
 import NouvelArticleEcran from './screens/NouvelArticleEcran'
 import AssistantEcran from './screens/AssistantEcran'
+import CapsulesEcran from './screens/CapsulesEcran'
+import { compterAOuvrir, delaiProchaineOuverture } from './lib/capsulesLogic'
 import ConnexionEcran from './screens/ConnexionEcran'
 
 export default function App() {
-  const { t } = useLangue()
+  const { t, langue } = useLangue()
   const [profil, setProfil] = useState(null)
   const [chargement, setChargement] = useState(true)
   const [items, setItems] = useState(() => lireCache())
   const [requetes, setRequetes] = useState([])
   const [boutique, setBoutique] = useState([])
   const [achats, setAchats] = useState([])
+  const [capsules, setCapsules] = useState([])
+  const [capsulesOuvertes, setCapsulesOuvertes] = useState(false)
   const [boutiqueOuverte, setBoutiqueOuverte] = useState(null) // null | 'partenaire' | 'mine' | 'achats'
   const [articleOuvert, setArticleOuvert] = useState(null) // null | 'nouveau' | article existant à éditer
   const [onglet, setOnglet] = useState('liste')
@@ -98,6 +102,30 @@ export default function App() {
     rafraichirBoutique()
     rafraichirAchats()
   }, [profil?.couple_id, rafraichirBoutique, rafraichirAchats])
+
+  const rafraichirCapsules = useCallback(async () => {
+    try { setCapsules(await store.listerCapsules()) } catch { /* pas critique, on retentera plus tard */ }
+  }, [])
+
+  useEffect(() => {
+    if (!profil?.couple_id) return
+    rafraichirCapsules()
+    // Retour sur l'app (téléphone déverrouillé, onglet rouvert) : une
+    // capsule a pu s'ouvrir entre-temps, aucun événement temps réel ne le dit.
+    const auRetour = () => { if (document.visibilityState === 'visible') rafraichirCapsules() }
+    document.addEventListener('visibilitychange', auRetour)
+    const arreter = store.ecouterCapsules(rafraichirCapsules)
+    return () => { document.removeEventListener('visibilitychange', auRetour); arreter() }
+  }, [profil?.couple_id, rafraichirCapsules])
+
+  // App restée ouverte : on rafraîchit pile au moment où la prochaine
+  // capsule s'ouvre (plafonné à un jour, setTimeout ne tient pas au-delà de ~24 j).
+  useEffect(() => {
+    const delai = delaiProchaineOuverture(capsules)
+    if (delai === null) return
+    const minuterie = setTimeout(rafraichirCapsules, Math.min(delai + 1000, 24 * 3600e3))
+    return () => clearTimeout(minuterie)
+  }, [capsules, rafraichirCapsules])
 
   useEffect(() => {
     if (!isRemote || !profil?.couple_id) { setPartenaire(null); return }
@@ -292,6 +320,43 @@ export default function App() {
     }
   }
 
+  const dateCourte = (iso) => new Date(iso).toLocaleDateString(langue === 'fr' ? 'fr-FR' : 'en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+
+  const creerCapsule = async (donnees) => {
+    await store.creerCapsule(donnees)
+    await rafraichirCapsules()
+    signaler(t('capsule_scellee_toast'))
+    // Surprise : rien ne doit trahir son existence avant la date.
+    if (!donnees.surprise) {
+      store.envoyerNotification(
+        t('notif_capsule_titre', { prenom: profil.prenom }),
+        t('notif_capsule_corps', { date: dateCourte(donnees.ouvreLe) })
+      )
+    }
+  }
+
+  const ouvrirCapsule = async (capsule) => {
+    const lue_le = new Date().toISOString()
+    setCapsules((liste) => liste.map((c) => (c.id === capsule.id ? { ...c, lue_le } : c)))
+    try {
+      await store.ouvrirCapsule(capsule.id)
+      if (capsule.auteur !== profil.id) {
+        store.envoyerNotification(
+          t('notif_capsule_lue_titre', { prenom: profil.prenom }),
+          t('notif_capsule_lue_corps', { date: dateCourte(capsule.cree_le) })
+        )
+      }
+    } catch (e) {
+      signaler(t(e.message) || t('erreur_generique'))
+      rafraichirCapsules()
+    }
+  }
+
+  const supprimerCapsule = async (id) => {
+    setCapsules((liste) => liste.filter((c) => c.id !== id))
+    try { await store.supprimerCapsule(id) } catch { signaler(t('suppr_non_enregistree')); rafraichirCapsules() }
+  }
+
   const editerPhrase = async () => {
     const phrase = window.prompt(t('phrase_prompt'), profil.phrase_perso || '')
     if (phrase === null) return
@@ -387,6 +452,8 @@ export default function App() {
           onCreerRequete={creerRequete}
           onAcheter={acheterArticle}
           onOuvrirBoutique={() => setBoutiqueOuverte('partenaire')}
+          capsules={capsules}
+          onOuvrirCapsules={() => setCapsulesOuvertes(true)}
           avatarUrl={profil.avatar_url}
           onOuvrirProfil={() => setProfilOuvert(true)}
         />
@@ -404,7 +471,7 @@ export default function App() {
         actif={onglet}
         onChange={setOnglet}
         aFaire={restants}
-        requetes={requetes.filter((r) => r.statut === 'ouverte').length}
+        requetes={requetes.filter((r) => r.statut === 'ouverte').length + compterAOuvrir(capsules, profil.id)}
       />
 
       {fiche && (
@@ -456,6 +523,20 @@ export default function App() {
           onSupprimerArticle={supprimerArticleBoutique}
           onNouvelArticle={() => setArticleOuvert('nouveau')}
           onEditerArticle={(article) => setArticleOuvert(article)}
+        />
+      )}
+
+      {capsulesOuvertes && (
+        <CapsulesEcran
+          capsules={capsules}
+          profil={profil}
+          partenaire={partenaire}
+          // À deux il faut un·e partenaire à qui écrire ; seul·e (mode local), on s'écrit à soi-même.
+          peutEcrire={!isRemote || !!partenaire}
+          onFermer={() => setCapsulesOuvertes(false)}
+          onCreer={creerCapsule}
+          onOuvrir={ouvrirCapsule}
+          onSupprimer={supprimerCapsule}
         />
       )}
 

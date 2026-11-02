@@ -499,6 +499,119 @@ create policy boutique_achats_lecture on boutique_achats for select using (coupl
 drop policy if exists points_transactions_lecture on points_transactions;
 create policy points_transactions_lecture on points_transactions for select using (couple_id = mon_couple());
 
+-- --------------------------------------------------------------- capsules
+-- Capsule temporelle : un message adressé au/à la partenaire, illisible
+-- avant `ouvre_le`. Le verrou est tenu ici, côté serveur (RLS + now() de la
+-- base) : changer l'heure du téléphone ne débloque rien, et le texte d'une
+-- capsule scellée ne quitte jamais la base pour le/la destinataire.
+--
+-- Deux modes :
+--  - scellée (surprise = false) : le/la destinataire voit qu'une capsule
+--    l'attend et sa date d'ouverture, mais pas le texte (capsules_scellees()) ;
+--  - surprise (surprise = true) : il/elle ne sait même pas qu'elle existe
+--    avant la date.
+
+create table if not exists capsules (
+  id            uuid primary key default gen_random_uuid(),
+  couple_id     uuid not null references couples on delete cascade,
+  auteur        uuid not null default auth.uid() references profils on delete cascade,
+  destinataire  uuid not null references profils on delete cascade,
+  texte         text not null check (char_length(texte) between 1 and 2000),
+  ouvre_le      timestamptz not null,
+  surprise      boolean not null default false,
+  lue_le        timestamptz,
+  cree_le       timestamptz default now()
+);
+
+create index if not exists capsules_couple_idx on capsules (couple_id, ouvre_le);
+
+-- Couple et destinataire déduits côté serveur : le client n'envoie que le
+-- texte, la date et le mode.
+create or replace function preparer_capsule()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.couple_id is null then new.couple_id := mon_couple(); end if;
+  if new.destinataire is null then
+    select id into new.destinataire from profils
+    where couple_id = new.couple_id and id <> auth.uid()
+    limit 1;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists capsules_preparer on capsules;
+create trigger capsules_preparer before insert on capsules
+for each row execute function preparer_capsule();
+
+-- Ce que le/la destinataire peut savoir d'une capsule encore scellée : qui,
+-- quand — jamais le texte. Les capsules surprise n'y figurent pas.
+create or replace function capsules_scellees()
+returns table (id uuid, auteur uuid, destinataire uuid, ouvre_le timestamptz, cree_le timestamptz)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select c.id, c.auteur, c.destinataire, c.ouvre_le, c.cree_le
+  from capsules c
+  where c.destinataire = auth.uid() and c.ouvre_le > now() and not c.surprise
+  order by c.ouvre_le
+$$;
+
+-- Le/la destinataire marque la capsule comme lue (une seule fois), ce qui
+-- permet à l'auteur·e de savoir qu'elle a été ouverte.
+create or replace function ouvrir_capsule(id_capsule uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_capsule capsules%rowtype;
+begin
+  select * into v_capsule from capsules where id = id_capsule;
+  if not found or v_capsule.destinataire <> auth.uid() then
+    raise exception 'capsule introuvable';
+  end if;
+  if v_capsule.ouvre_le > now() then
+    raise exception 'capsule encore scellée';
+  end if;
+  update capsules set lue_le = now() where id = id_capsule and lue_le is null;
+end $$;
+
+alter table capsules enable row level security;
+
+-- Lecture complète : l'auteur·e toujours, le/la destinataire seulement une
+-- fois la date passée.
+drop policy if exists capsules_lecture on capsules;
+create policy capsules_lecture on capsules for select
+  using (
+    couple_id = mon_couple()
+    and (auteur = auth.uid() or (destinataire = auth.uid() and ouvre_le <= now()))
+  );
+
+drop policy if exists capsules_creation on capsules;
+create policy capsules_creation on capsules for insert
+  with check (
+    couple_id = mon_couple()
+    and auteur = auth.uid()
+    and destinataire <> auth.uid()
+    and destinataire in (select id from profils where couple_id = mon_couple())
+    and ouvre_le > now()
+    and lue_le is null
+  );
+
+-- Pas de policy update : le texte et la date sont figés une fois scellés
+-- (seule ouvrir_capsule() touche à lue_le). L'auteur·e peut encore retirer
+-- sa capsule tant qu'elle n'est pas ouverte, plus après.
+drop policy if exists capsules_suppression on capsules;
+create policy capsules_suppression on capsules for delete
+  using (auteur = auth.uid() and ouvre_le > now());
+
 -- --------------------------------------------------------------- temps réel
 
 do $$
@@ -514,6 +627,12 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'requetes'
   ) then
     alter publication supabase_realtime add table requetes;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'capsules'
+  ) then
+    alter publication supabase_realtime add table capsules;
   end if;
 end $$;
 

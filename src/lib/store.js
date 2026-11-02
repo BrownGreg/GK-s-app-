@@ -14,7 +14,9 @@ const MESSAGES_FONCTIONS = {
   'validation de sa propre demande interdite': 'validation_propre_demande',
   'achat introuvable': 'achat_introuvable',
   'achat déjà réclamé': 'achat_deja_reclame',
-  'achat pas encore réclamé': 'achat_pas_reclame'
+  'achat pas encore réclamé': 'achat_pas_reclame',
+  'capsule introuvable': 'capsule_introuvable',
+  'capsule encore scellée': 'capsule_encore_scellee'
 }
 function traduireErreurFonction(error) {
   const cle = Object.entries(MESSAGES_FONCTIONS).find(([msg]) => error.message?.includes(msg))?.[1]
@@ -303,6 +305,38 @@ const localStore = {
       a.id === id && a.statut === 'claimed' ? { ...a, statut: 'honored', honore_le: new Date().toISOString() } : a
     ))
   },
+
+  // Mode local : solo, donc la capsule s'adresse à soi-même. Le verrou n'est
+  // ici qu'un masquage côté client (pas de serveur pour le garantir).
+  async listerCapsules() {
+    const maintenant = Date.now()
+    return LS.read('envies:capsules', []).map((c) =>
+      new Date(c.ouvre_le).getTime() > maintenant ? { ...c, texte: null, scellee: true } : { ...c, scellee: false }
+    )
+  },
+  async creerCapsule({ texte, ouvreLe, surprise }) {
+    const profil = LS.read('envies:profil', null)
+    const nouvelle = {
+      id: uid(),
+      auteur: profil?.id,
+      destinataire: profil?.id,
+      texte,
+      ouvre_le: ouvreLe,
+      surprise: !!surprise,
+      lue_le: null,
+      cree_le: new Date().toISOString()
+    }
+    LS.write('envies:capsules', [nouvelle, ...LS.read('envies:capsules', [])])
+  },
+  async ouvrirCapsule(id) {
+    LS.write('envies:capsules', LS.read('envies:capsules', []).map((c) =>
+      c.id === id && !c.lue_le && new Date(c.ouvre_le) <= new Date() ? { ...c, lue_le: new Date().toISOString() } : c
+    ))
+  },
+  async supprimerCapsule(id) {
+    LS.write('envies:capsules', LS.read('envies:capsules', []).filter((c) => c.id !== id))
+  },
+  ecouterCapsules() { return () => {} },
 
   ecouter() { return () => {} }
 }
@@ -754,6 +788,48 @@ const remoteStore = {
   async honorerAchat(id) {
     const { error } = await supabase.rpc('honorer_achat', { id_achat: id })
     if (error) throw traduireErreurFonction(error)
+  },
+
+  // Deux sources : la table (mes capsules, et celles reçues déjà ouvertes)
+  // et capsules_scellees() (celles reçues encore scellées, sans le texte —
+  // la RLS ne le laisse jamais sortir avant la date).
+  async listerCapsules() {
+    const [lisibles, scellees] = await Promise.all([
+      supabase.from('capsules').select('*').order('ouvre_le', { ascending: true }),
+      supabase.rpc('capsules_scellees')
+    ])
+    if (lisibles.error) throw lisibles.error
+    if (scellees.error) throw scellees.error
+    const maintenant = Date.now()
+    return [
+      ...(lisibles.data || []).map((c) => ({ ...c, scellee: new Date(c.ouvre_le).getTime() > maintenant })),
+      ...(scellees.data || []).map((c) => ({ ...c, texte: null, surprise: false, lue_le: null, scellee: true }))
+    ]
+  },
+
+  async creerCapsule({ texte, ouvreLe, surprise }) {
+    const { error } = await supabase
+      .from('capsules')
+      .insert({ texte, ouvre_le: ouvreLe, surprise: !!surprise })
+    if (error) throw error
+  },
+
+  async ouvrirCapsule(id) {
+    const { error } = await supabase.rpc('ouvrir_capsule', { id_capsule: id })
+    if (error) throw traduireErreurFonction(error)
+  },
+
+  async supprimerCapsule(id) {
+    const { error } = await supabase.from('capsules').delete().eq('id', id)
+    if (error) throw error
+  },
+
+  ecouterCapsules(rappel) {
+    const canal = supabase
+      .channel('capsules-partagees')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'capsules' }, rappel)
+      .subscribe()
+    return () => supabase.removeChannel(canal)
   },
 
   ecouterRequetes(rappel) {
