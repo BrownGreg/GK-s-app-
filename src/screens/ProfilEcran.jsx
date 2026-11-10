@@ -186,6 +186,17 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
     onHumeur(nouvelle.id, null)
   }
 
+  const supprimerHumeur = async (humeur) => {
+    if (!window.confirm(t('humeur_supprimer_confirmer', { label: humeur.label }))) return
+    try {
+      await store.supprimerHumeurPerso(humeur.id)
+      setHumeursPerso((liste) => liste.filter((h) => h.id !== humeur.id))
+      if (humeur.id === monHumeurId) onHumeur(null, null)
+    } catch {
+      setErreur(t('erreur_generique'))
+    }
+  }
+
   const choisirImageHumeur = (image) => {
     setSelecteurImageOuvert(false)
     onHumeur(monHumeurId, image)
@@ -285,14 +296,22 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
             </button>
           ))}
           {humeursPerso.map((h) => (
-            <button
-              key={h.id}
-              className={`humeur-carte${h.id === monHumeurId ? ' on' : ''}`}
-              onClick={() => onHumeur(h.id, null)}
-            >
-              <span className="humeur-carte__dot" style={{ background: h.couleur }} />
-              {h.label}
-            </button>
+            <div key={h.id} className="humeur-carte-perso">
+              <button
+                className={`humeur-carte${h.id === monHumeurId ? ' on' : ''}`}
+                onClick={() => onHumeur(h.id, null)}
+              >
+                <span className="humeur-carte__dot" style={{ background: h.couleur }} />
+                {h.label}
+              </button>
+              <button
+                className="humeur-carte__supprimer"
+                onClick={() => supprimerHumeur(h)}
+                aria-label={t('humeur_supprimer', { label: h.label })}
+              >
+                ×
+              </button>
+            </div>
           ))}
           <button className="humeur-carte humeur-carte--ajouter" onClick={() => setAjoutHumeurOuvert(true)}>
             + {t('humeur_ajouter')}

@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-11-10 — Supprimer une humeur perso
+
+Sur le Profil, chaque humeur ajoutée par le couple a maintenant une petite
+croix pour la supprimer (après confirmation). Elle disparaît pour les deux ;
+si c'était l'humeur du jour, celle-ci est retirée. Les humeurs de base ne
+sont pas supprimables.
+
+À appliquer en base : la nouvelle règle `humeurs_perso_suppression` dans
+`supabase/schema.sql`.
+
 ## 2026-11-02 — Capsules temporelles
 
 Depuis l'onglet **Demandes**, une nouvelle entrée « Capsules temporelles »

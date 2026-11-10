@@ -143,6 +143,10 @@ const localStore = {
     LS.write('envies:humeurs_perso', liste)
     return humeur
   },
+  async supprimerHumeurPerso(id) {
+    const liste = LS.read('envies:humeurs_perso', [])
+    LS.write('envies:humeurs_perso', liste.filter((h) => h.id !== id))
+  },
   async majMessageJour(message) {
     const profil = LS.read('envies:profil', null)
     if (profil) {
@@ -413,6 +417,11 @@ const remoteStore = {
       .single()
     if (error) throw error
     return data
+  },
+
+  async supprimerHumeurPerso(id) {
+    const { error } = await supabase.from('humeurs_perso').delete().eq('id', id)
+    if (error) throw error
   },
 
   async envoyerLienConnexion(email) {

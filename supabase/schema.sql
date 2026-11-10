@@ -477,6 +477,9 @@ create policy humeurs_perso_lecture on humeurs_perso for select using (couple_id
 drop policy if exists humeurs_perso_creation on humeurs_perso;
 create policy humeurs_perso_creation on humeurs_perso for insert with check (couple_id = mon_couple());
 
+drop policy if exists humeurs_perso_suppression on humeurs_perso;
+create policy humeurs_perso_suppression on humeurs_perso for delete using (couple_id = mon_couple());
+
 drop policy if exists boutique_articles_lecture on boutique_articles;
 create policy boutique_articles_lecture on boutique_articles for select using (couple_id = mon_couple());
 
