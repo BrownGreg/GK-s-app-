@@ -1366,7 +1366,7 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
   position: sticky;
   top: 0;
   background: var(--navy-900);
-  z-index: 2;
+  z-index: 10;
 }
 .profil-ecran__entete h1 {
   font-family: var(--serif);
@@ -1393,7 +1393,10 @@ input, textarea, select { font-family: inherit; font-size: 16px; }
 
 .profil-ecran__corps { padding: 6px 18px calc(var(--safe-bottom) + 40px); }
 
+/* isolation : le z-index des avatars (chevauchement moi/partenaire) reste
+   interne à la carte et ne passe plus au-dessus de l'en-tête au défilement. */
 .couple-carte {
+  isolation: isolate;
   background: var(--cream-50);
   color: var(--ink);
   border-radius: var(--r-card);
