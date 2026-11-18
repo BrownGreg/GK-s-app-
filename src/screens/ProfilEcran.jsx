@@ -163,6 +163,14 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
   const [signeEnvoye, setSigneEnvoye] = useState(false)
   const [copie, setCopie] = useState(false)
   const [mdpOuvert, setMdpOuvert] = useState(false)
+  const [imageAgrandie, setImageAgrandie] = useState(null)
+
+  useEffect(() => {
+    if (!imageAgrandie) return
+    const echap = (e) => e.key === 'Escape' && setImageAgrandie(null)
+    window.addEventListener('keydown', echap)
+    return () => window.removeEventListener('keydown', echap)
+  }, [imageAgrandie])
   const [mdpEnregistre, setMdpEnregistre] = useState(false)
 
   const aujourdhui = new Date().toISOString().slice(0, 10)
@@ -326,7 +334,11 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
               <div className="aujourdhui-carte">
                 <span className="aujourdhui-carte__label">{t('profil_toi')}</span>
                 <p>{monHumeur ? monHumeur.label : t('profil_pas_partage')}</p>
-                {monHumeurImage && <img className="aujourdhui-carte__image" src={monHumeurImage} alt="" />}
+                {monHumeurImage && (
+                  <button className="aujourdhui-carte__voir" onClick={() => setImageAgrandie(monHumeurImage)} aria-label={t('photo_agrandir_aria')}>
+                    <img className="aujourdhui-carte__image" src={monHumeurImage} alt="" />
+                  </button>
+                )}
               </div>
               <div className={`aujourdhui-carte${humeurPartenaire ? '' : ' aujourdhui-carte--vide'}`}>
                 <span className="aujourdhui-carte__label">{partenaire.prenom}</span>
@@ -334,7 +346,9 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
                   <>
                     <p>{humeurPartenaire.label}</p>
                     {humeurPartenaireImage && (
-                      <img className="aujourdhui-carte__image" src={humeurPartenaireImage} alt="" />
+                      <button className="aujourdhui-carte__voir" onClick={() => setImageAgrandie(humeurPartenaireImage)} aria-label={t('photo_agrandir_aria')}>
+                        <img className="aujourdhui-carte__image" src={humeurPartenaireImage} alt="" />
+                      </button>
                     )}
                   </>
                 ) : (
@@ -491,6 +505,13 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
           onValider={validerRognage}
           onAnnuler={() => setFichierARogner(null)}
         />
+      )}
+
+      {imageAgrandie && (
+        <div className="lightbox" onClick={() => setImageAgrandie(null)}>
+          <button className="lightbox__fermer" onClick={() => setImageAgrandie(null)} aria-label={t('fermer')}>×</button>
+          <img src={imageAgrandie} alt="" />
+        </div>
       )}
 
       {mdpOuvert && (
