@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import { useLangue } from './lib/i18n'
 import { BarreOnglets } from './components/Commun'
 import { FicheEnvie, FormulaireEnvie } from './components/Panneaux'
+import { FicheSouhait, FormulaireSouhait } from './components/Souhaits'
 import { PanneauCalendrier } from './components/Calendrier'
 import ProfilEcran from './screens/ProfilEcran'
 // MapLibre pèse lourd : on ne le charge qu'à l'ouverture de l'onglet Carte.
@@ -34,6 +35,10 @@ export default function App() {
   const [onglet, setOnglet] = useState('liste')
   const [fiche, setFiche] = useState(null)
   const [formulaire, setFormulaire] = useState(null) // null | { lieu }
+  const [edition, setEdition] = useState(null) // envie en cours d'édition
+  const [souhaits, setSouhaits] = useState([])
+  const [ficheSouhait, setFicheSouhait] = useState(null) // id du souhait ouvert
+  const [formulaireSouhait, setFormulaireSouhait] = useState(null) // null | 'nouveau' | souhait à éditer
   const [message, setMessage] = useState('')
   const [profilOuvert, setProfilOuvert] = useState(false)
   const [calendrierOuvert, setCalendrierOuvert] = useState(false)
@@ -127,6 +132,16 @@ export default function App() {
     return () => clearTimeout(minuterie)
   }, [capsules, rafraichirCapsules])
 
+  const rafraichirSouhaits = useCallback(async () => {
+    try { setSouhaits(await store.listerSouhaits()) } catch { /* pas critique, on retentera plus tard */ }
+  }, [])
+
+  useEffect(() => {
+    if (!profil?.couple_id) return
+    rafraichirSouhaits()
+    return store.ecouterSouhaits(rafraichirSouhaits)
+  }, [profil?.couple_id, rafraichirSouhaits])
+
   useEffect(() => {
     if (!isRemote || !profil?.couple_id) { setPartenaire(null); return }
     store.partenaire(profil.couple_id).then(setPartenaire).catch(() => setPartenaire(null))
@@ -169,6 +184,11 @@ export default function App() {
     }
   }
 
+  const enregistrerEdition = (id, champs) => {
+    setEdition(null)
+    modifier(id, champs)
+  }
+
   const basculer = (item) =>
     modifier(item.id, {
       fait: !item.fait,
@@ -203,6 +223,40 @@ export default function App() {
     setItems((liste) => liste.map((i) => (i.id === id ? { ...i, photos: retirer(i.photos) } : i)))
     setFiche((f) => (f && f.id === id ? { ...f, photos: retirer(f.photos) } : f))
     try { await store.supprimerPhoto(id, url) } catch { signaler(t('suppr_photo_non_enregistree')); rafraichir() }
+  }
+
+  const creerSouhait = async (donnees) => {
+    await store.creerSouhait(donnees)
+    setFormulaireSouhait(null)
+    await rafraichirSouhaits()
+    signaler(t('souhait_ajoute'))
+    store.envoyerNotification(t('notif_nouveau_souhait'), donnees.titre)
+  }
+
+  // Avec une nouvelle image, on attend l'envoi (le formulaire affiche
+  // l'erreur s'il échoue) ; sinon mise à jour optimiste.
+  const modifierSouhait = async (id, patch) => {
+    const { image, ...champs } = patch
+    setSouhaits((liste) => liste.map((s) => (s.id === id ? { ...s, ...champs, ...(image === null ? { image_url: null } : {}) } : s)))
+    try {
+      await store.majSouhait(id, patch)
+      if (image) await rafraichirSouhaits()
+    } catch (e) {
+      rafraichirSouhaits()
+      if (image) throw e
+      signaler(t('souhait_erreur'))
+    }
+  }
+
+  const enregistrerSouhait = async (id, patch) => {
+    await modifierSouhait(id, patch)
+    setFormulaireSouhait(null)
+  }
+
+  const supprimerSouhait = async (id) => {
+    setFicheSouhait(null)
+    setSouhaits((liste) => liste.filter((s) => s.id !== id))
+    try { await store.supprimerSouhait(id) } catch { signaler(t('suppr_non_enregistree')); rafraichirSouhaits() }
   }
 
   const creerRequete = async (texte, points) => {
@@ -396,8 +450,10 @@ export default function App() {
 
   if (!profil || !profil.couple_id) return <ConnexionEcran profil={profil} onPret={setProfil} />
 
-  const sorties = items.filter((i) => !i.wishlist)
-  const souhaits = items.filter((i) => i.wishlist)
+  // Les anciens souhaits (items.wishlist) sont désormais des tâches comme
+  // les autres : la wishlist vit dans sa propre table.
+  const sorties = items
+  const souhaitOuvert = ficheSouhait ? souhaits.find((s) => s.id === ficheSouhait) : null
   const restants = sorties.filter((i) => !i.fait).length
 
   return (
@@ -436,9 +492,10 @@ export default function App() {
       )}
       {onglet === 'wishlist' && (
         <WishlistEcran
-          items={souhaits}
-          onOuvrir={setFiche}
-          onBasculer={basculer}
+          souhaits={souhaits}
+          profil={profil}
+          partenaire={partenaire}
+          onOuvrir={(s) => setFicheSouhait(s.id)}
           avatarUrl={profil.avatar_url}
           pastilleProfil={capsulesAOuvrir > 0}
           onOuvrirProfil={() => setProfilOuvert(true)}
@@ -479,13 +536,14 @@ export default function App() {
         requetes={requetes.filter((r) => r.statut === 'ouverte').length}
       />
 
-      {fiche && (
+      {fiche && !edition && (
         <FicheEnvie
           item={items.find((i) => i.id === fiche.id) || fiche}
           profil={profil}
           partenaire={partenaire}
           onFermer={() => setFiche(null)}
           onModifier={modifier}
+          onEditer={setEdition}
           onSupprimer={supprimer}
           onAjouterPhoto={ajouterPhoto}
           onSupprimerPhoto={supprimerPhoto}
@@ -495,9 +553,37 @@ export default function App() {
       {formulaire && (
         <FormulaireEnvie
           lieuInitial={formulaire.lieu}
-          wishlist={onglet === 'wishlist'}
           onFermer={() => setFormulaire(null)}
           onCreer={creer}
+        />
+      )}
+
+      {edition && (
+        <FormulaireEnvie
+          item={items.find((i) => i.id === edition.id) || edition}
+          onFermer={() => setEdition(null)}
+          onEnregistrer={enregistrerEdition}
+        />
+      )}
+
+      {souhaitOuvert && !formulaireSouhait && (
+        <FicheSouhait
+          souhait={souhaitOuvert}
+          profil={profil}
+          partenaire={partenaire}
+          onFermer={() => setFicheSouhait(null)}
+          onEditer={setFormulaireSouhait}
+          onModifier={modifierSouhait}
+          onSupprimer={supprimerSouhait}
+        />
+      )}
+
+      {formulaireSouhait && (
+        <FormulaireSouhait
+          souhait={formulaireSouhait === 'nouveau' ? null : formulaireSouhait}
+          onFermer={() => setFormulaireSouhait(null)}
+          onCreer={creerSouhait}
+          onEnregistrer={enregistrerSouhait}
         />
       )}
 
@@ -570,7 +656,7 @@ export default function App() {
       {onglet !== 'carte' && onglet !== 'assistant' && onglet !== 'requests' && (
         <button
           className="fab"
-          onClick={() => setFormulaire({ lieu: null })}
+          onClick={() => (onglet === 'wishlist' ? setFormulaireSouhait('nouveau') : setFormulaire({ lieu: null }))}
           aria-label={t('ajouter_envie_aria')}
         >
           +

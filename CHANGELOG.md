@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-11-18 — Mot de passe depuis le Profil, édition des envies, vraie wishlist
+
+- **Mot de passe** : dans Profil → Réglages, « Mot de passe · Créer / modifier ».
+  Un compte créé par lien email (invitation, lien magique) n'a pas de mot de
+  passe : il peut maintenant en choisir un, puis se connecter avec email +
+  mot de passe. S'il en existe déjà un, il est remplacé.
+- **Modifier une envie** : sur la fiche, bouton « ✎ Modifier » pour changer
+  le nom, la description, le type, les étiquettes (ajout/retrait, y compris
+  les perso) et l'adresse (nouvelle recherche, ou adresse tapée telle quelle).
+- **Anciens souhaits → À faire** : les éléments de l'ancienne wishlist
+  deviennent des envies sans date précise dans l'onglet À faire.
+- **Nouvelle wishlist** : une vraie liste de souhaits, chacun·e la sienne.
+  Chaque article a une photo, un prix, un lien et des précisions
+  (facultatifs). Vues « Mes envies », « Pour {partenaire} » et « Reçus ».
+  On peut réserver un article de l'autre (« Je l'offre ») sans qu'il/elle
+  le voie, et marquer les siens comme reçus.
+
+À appliquer en base : réexécuter `supabase/schema.sql` (nouvelle table
+`wishlist_articles` + règles + temps réel, et déplacement des anciens
+souhaits de `items`). La réservation n'est masquée au/à la propriétaire que
+dans l'app, pas par la base.
+
 ## 2026-11-10 — Supprimer une humeur perso
 
 Sur le Profil, chaque humeur ajoutée par le couple a maintenant une petite

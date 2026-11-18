@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { store, TYPES, TYPES_SORTIE, TYPES_SOUHAIT, TAGS_SUGGERES, chercherLieu, compresserImage, telechargerEvenement, telechargerPhoto } from '../lib/store'
+import { TYPES, TAGS_SUGGERES, chercherLieu, compresserImage, telechargerEvenement, telechargerPhoto } from '../lib/store'
 import { useLangue } from '../lib/i18n'
 import { IconeLoupe, Etoiles } from './Commun'
 import { BottomSheet as Panneau } from './BottomSheet'
@@ -8,7 +8,7 @@ import { BottomSheet as Panneau } from './BottomSheet'
 /* Fiche d'une envie : elle devient la fiche souvenir une fois faite.   */
 /* ------------------------------------------------------------------ */
 
-export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onSupprimer, onAjouterPhoto, onSupprimerPhoto }) {
+export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onEditer, onSupprimer, onAjouterPhoto, onSupprimerPhoto }) {
   const { t, langue } = useLangue()
   const [envoiPhoto, setEnvoiPhoto] = useState(false)
   const [erreur, setErreur] = useState('')
@@ -67,11 +67,17 @@ export function FicheEnvie({ item, profil, partenaire, onFermer, onModifier, onS
 
       {item.adresse && <p className="meta">📍 {item.adresse}</p>}
 
+      {onEditer && (
+        <button className="btn-modifier" onClick={() => onEditer(item)}>
+          ✎ {t('modifier_envie')}
+        </button>
+      )}
+
       <button className={item.fait ? 'btn btn--gold' : 'btn'} onClick={basculer}>
         {item.fait ? t('remettre_envies') : t('cest_fait')}
       </button>
 
-      {!item.fait && !item.wishlist && (
+      {!item.fait && (
         <div className="field" style={{ marginTop: 16 }}>
           <label>{t('prevue_pour')}</label>
           <input
@@ -335,19 +341,27 @@ function versDatetimeLocal(date) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Formulaire d'ajout.                                                  */
+/* Formulaire d'ajout — et d'édition quand `item` est fourni.           */
 /* ------------------------------------------------------------------ */
 
-export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCreer }) {
+// Lieu déjà enregistré → même forme que les résultats de recherche, pour
+// que l'adresse d'origine soit conservée telle quelle si on n'y touche pas.
+function lieuDepuisItem(item) {
+  if (!item?.adresse && item?.lat == null) return null
+  return { nom: item.adresse || '', detail: '', lat: item.lat ?? null, lng: item.lng ?? null }
+}
+
+export function FormulaireEnvie({ item = null, lieuInitial, onFermer, onCreer, onEnregistrer }) {
   const { t } = useLangue()
-  const cles = wishlist ? TYPES_SOUHAIT : TYPES_SORTIE
-  const [titre, setTitre] = useState('')
-  const [description, setDescription] = useState('')
-  const [type, setType] = useState(cles[0])
-  const [tags, setTags] = useState([])
+  const estEdition = !!item
+  const cles = Object.keys(TYPES)
+  const [titre, setTitre] = useState(item?.titre || '')
+  const [description, setDescription] = useState(item?.description || '')
+  const [type, setType] = useState(item?.type || cles[0])
+  const [tags, setTags] = useState(item?.tags || [])
   const [ajoutEtiquette, setAjoutEtiquette] = useState(false)
   const [nouvelleEtiquette, setNouvelleEtiquette] = useState('')
-  const [lieu, setLieu] = useState(lieuInitial || null)
+  const [lieu, setLieu] = useState(estEdition ? lieuDepuisItem(item) : lieuInitial || null)
   const [requete, setRequete] = useState('')
   const [resultats, setResultats] = useState([])
   const [datePrevue, setDatePrevue] = useState('')
@@ -370,29 +384,45 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
     setAjoutEtiquette(false)
   }
 
+  // Adresse tapée sans choisir de résultat : on la garde quand même, sans
+  // coordonnées (l'envie n'apparaîtra simplement pas sur la carte).
+  const adresseLibre = requete.trim()
+
   const valider = () => {
     if (!titre.trim()) { setErreur(t('titre_manquant')); return }
-    onCreer({
+    const lieuFinal = lieu || (adresseLibre ? { nom: adresseLibre, detail: '', lat: null, lng: null } : null)
+    const champs = {
       titre: titre.trim(),
       description: description.trim(),
       type,
-      wishlist,
       tags,
+      lat: lieuFinal?.lat ?? null,
+      lng: lieuFinal?.lng ?? null,
+      adresse: lieuFinal ? [lieuFinal.nom, lieuFinal.detail].filter(Boolean).join(' — ') : null
+    }
+    if (estEdition) {
+      onEnregistrer(item.id, champs)
+      return
+    }
+    onCreer({
+      ...champs,
+      wishlist: false,
       fait: false,
       avis: {},
       photos: [],
       date_faite: null,
       date_prevue: datePrevue ? new Date(datePrevue).toISOString() : null,
-      date_fin: null,
-      lat: lieu?.lat ?? null,
-      lng: lieu?.lng ?? null,
-      adresse: lieu ? [lieu.nom, lieu.detail].filter(Boolean).join(' — ') : null
+      date_fin: null
     })
   }
 
+  // Étiquettes perso (hors suggestions) d'abord, pour que celles de l'envie
+  // éditée soient visibles tout de suite.
+  const tagsPerso = tags.filter((tag) => !TAGS_SUGGERES.includes(tag))
+
   return (
     <Panneau onFermer={onFermer}>
-      <h2>{wishlist ? t('nouveau_souhait') : t('nouvelle_envie')}</h2>
+      <h2>{estEdition ? t('modifier_envie') : t('nouvelle_envie')}</h2>
 
       <div className="field">
         <label>{t('titre_champ')}</label>
@@ -400,7 +430,7 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
           value={titre}
           placeholder={t('titre_placeholder')}
           onChange={(e) => { setTitre(e.target.value); setErreur('') }}
-          autoFocus
+          autoFocus={!estEdition}
         />
       </div>
 
@@ -425,7 +455,7 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
         </div>
       </div>
 
-      {!wishlist && (
+      {!estEdition && (
         <div className="field">
           <label>{t('prevue_pour')}</label>
           <input
@@ -439,22 +469,23 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
       <div className="field">
         <label>{t('etiquettes')}</label>
         <div className="card__tags">
+          {tagsPerso.map((tag) => (
+            <button
+              key={tag}
+              className="tag"
+              onClick={() => basculerTag(tag)}
+              style={{ background: '#16233d', color: '#F5F0E6' }}
+              aria-label={t('retirer_etiquette_aria', { tag })}
+            >
+              {tag} ×
+            </button>
+          ))}
           {TAGS_SUGGERES.map((tag) => (
             <button
               key={tag}
               className="tag"
               onClick={() => basculerTag(tag)}
               style={tags.includes(tag) ? { background: '#16233d', color: '#F5F0E6' } : undefined}
-            >
-              {tag}
-            </button>
-          ))}
-          {tags.filter((tag) => !TAGS_SUGGERES.includes(tag)).map((tag) => (
-            <button
-              key={tag}
-              className="tag"
-              onClick={() => basculerTag(tag)}
-              style={{ background: '#16233d', color: '#F5F0E6' }}
             >
               {tag}
             </button>
@@ -485,26 +516,25 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
         </div>
       </div>
 
-      {!wishlist && (
       <div className="field">
         <label>{t('lieu_champ')}</label>
         {lieu ? (
           <div className="card" style={{ marginBottom: 0 }}>
             <div className="card__body">
               <strong style={{ fontWeight: 500 }}>{lieu.nom}</strong>
-              <p className="card__desc">{lieu.detail}</p>
+              {lieu.detail && <p className="card__desc">{lieu.detail}</p>}
             </div>
-            <button className="status status--todo" onClick={() => setLieu(null)}>{t('retirer')}</button>
+            <button className="status status--todo" onClick={() => setLieu(null)}>
+              {estEdition ? t('changer') : t('retirer')}
+            </button>
           </div>
         ) : (
           <>
-            <div style={{ position: 'relative' }}>
-              <input
-                value={requete}
-                placeholder={t('chercher_adresse')}
-                onChange={(e) => setRequete(e.target.value)}
-              />
-            </div>
+            <input
+              value={requete}
+              placeholder={t('chercher_adresse')}
+              onChange={(e) => setRequete(e.target.value)}
+            />
             {resultats.length > 0 && (
               <div className="map-results" style={{ position: 'static' }}>
                 {resultats.map((r, i) => (
@@ -518,11 +548,10 @@ export function FormulaireEnvie({ lieuInitial, wishlist = false, onFermer, onCre
           </>
         )}
       </div>
-      )}
 
       {erreur && <p style={{ color: '#b3352c', fontSize: 13 }}>{erreur}</p>}
 
-      <button className="btn" onClick={valider}>{t('ajouter_envies')}</button>
+      <button className="btn" onClick={valider}>{estEdition ? t('enregistrer') : t('ajouter_envies')}</button>
       <button className="btn btn--ghost" onClick={onFermer}>{t('annuler')}</button>
     </Panneau>
   )

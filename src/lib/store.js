@@ -18,6 +18,13 @@ const MESSAGES_FONCTIONS = {
   'capsule introuvable': 'capsule_introuvable',
   'capsule encore scellée': 'capsule_encore_scellee'
 }
+// Erreurs Supabase Auth au changement de mot de passe → clés i18n.
+const ERREURS_MOT_DE_PASSE = {
+  same_password: 'mdp_identique',
+  weak_password: 'mot_de_passe_court',
+  reauthentication_needed: 'mdp_reconnexion_requise'
+}
+
 function traduireErreurFonction(error) {
   const cle = Object.entries(MESSAGES_FONCTIONS).find(([msg]) => error.message?.includes(msg))?.[1]
   return new Error(cle || 'erreur_generique')
@@ -111,6 +118,8 @@ const localStore = {
     return profil
   },
   async deconnecter() { localStorage.removeItem('envies:profil') },
+  // Mode local : pas de compte, donc pas de mot de passe.
+  async definirMotDePasse() { throw new Error('mdp_non_disponible') },
   async majPhrase(phrase) {
     const profil = LS.read('envies:profil', null)
     if (profil) { profil.phrase_perso = phrase; LS.write('envies:profil', profil) }
@@ -163,6 +172,12 @@ const localStore = {
   async desactiverNotifications() {},
   async statutNotifications() { return 'indisponible' },
   async lister() {
+    // Les anciens souhaits (items.wishlist) deviennent des tâches sans date :
+    // la wishlist a désormais sa propre liste (envies:souhaits).
+    const items = LS.read('envies:items', [])
+    if (items.some((i) => i.wishlist)) {
+      LS.write('envies:items', items.map((i) => (i.wishlist ? { ...i, wishlist: false, date_prevue: null, date_fin: null } : i)))
+    }
     return LS.read('envies:items', []).sort(trierItems)
   },
   async creer(item) {
@@ -342,6 +357,38 @@ const localStore = {
   },
   ecouterCapsules() { return () => {} },
 
+  async listerSouhaits() {
+    return LS.read('envies:souhaits', [])
+  },
+  async creerSouhait({ titre, notes, lien, prix, image }) {
+    const profil = LS.read('envies:profil', null)
+    const nouveau = {
+      id: uid(),
+      cree_par: profil?.id,
+      titre,
+      notes: notes || '',
+      lien: lien || null,
+      prix: prix ?? null,
+      image_url: image || null,
+      reserve_par: null,
+      recu: false,
+      cree_le: new Date().toISOString()
+    }
+    LS.write('envies:souhaits', [nouveau, ...LS.read('envies:souhaits', [])])
+    return nouveau
+  },
+  // `image` : data URL (nouvelle image), null (retirer), undefined (inchangée).
+  async majSouhait(id, { image, ...patch }) {
+    LS.write('envies:souhaits', LS.read('envies:souhaits', []).map((s) => {
+      if (s.id !== id) return s
+      return { ...s, ...patch, ...(image !== undefined ? { image_url: image } : {}) }
+    }))
+  },
+  async supprimerSouhait(id) {
+    LS.write('envies:souhaits', LS.read('envies:souhaits', []).filter((s) => s.id !== id))
+  },
+  ecouterSouhaits() { return () => {} },
+
   ecouter() { return () => {} }
 }
 
@@ -352,8 +399,11 @@ const localStore = {
 // Même chemin qu'avant, écrasé à chaque changement (cache-bust via ?v=) :
 // comme pour l'avatar, un seul fichier par article, pas d'accumulation.
 async function televerserImageArticle(articleId, dataUrl) {
+  return televerserImage(`boutique/${articleId}.jpg`, dataUrl)
+}
+
+async function televerserImage(chemin, dataUrl) {
   const blob = await (await fetch(dataUrl)).blob()
-  const chemin = `boutique/${articleId}.jpg`
   const { error } = await supabase.storage
     .from('photos')
     .upload(chemin, blob, { contentType: 'image/jpeg', upsert: true })
@@ -384,6 +434,7 @@ const remoteStore = {
       message_jour_le: data.message_jour_le,
       points: data.points || 0,
       couple_id: data.couple_id,
+      email: user.email || '',
       code_invitation: data.couples?.code_invitation,
       phrase_perso: data.couples?.phrase_perso || ''
     }
@@ -452,6 +503,13 @@ const remoteStore = {
       options: { redirectTo: window.location.origin }
     })
     if (error) throw error
+  },
+
+  // Compte créé par lien email (invitation, lien magique) : aucun mot de
+  // passe n'existe encore. updateUser le crée, ou le remplace s'il existe.
+  async definirMotDePasse(motDePasse) {
+    const { error } = await supabase.auth.updateUser({ password: motDePasse })
+    if (error) throw new Error(ERREURS_MOT_DE_PASSE[error.code] || 'mdp_erreur')
   },
 
   async deconnecter() { await supabase.auth.signOut() },
@@ -837,6 +895,60 @@ const remoteStore = {
     const canal = supabase
       .channel('capsules-partagees')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'capsules' }, rappel)
+      .subscribe()
+    return () => supabase.removeChannel(canal)
+  },
+
+  async listerSouhaits() {
+    const { data, error } = await supabase
+      .from('wishlist_articles')
+      .select('*')
+      .order('cree_le', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async creerSouhait({ titre, notes, lien, prix, image }) {
+    const { data, error } = await supabase
+      .from('wishlist_articles')
+      .insert({ titre, notes: notes || '', lien: lien || null, prix: prix ?? null })
+      .select()
+      .single()
+    if (error) throw error
+    if (image) {
+      const image_url = await televerserImage(`wishlist/${data.id}.jpg`, image)
+      if (image_url) {
+        await supabase.from('wishlist_articles').update({ image_url }).eq('id', data.id)
+        data.image_url = image_url
+      }
+    }
+    return data
+  },
+
+  // `image` : data URL (nouvelle image), null (retirer), undefined (inchangée).
+  async majSouhait(id, { image, ...patch }) {
+    if (image === null) patch.image_url = null
+    if (image) {
+      const image_url = await televerserImage(`wishlist/${id}.jpg`, image)
+      if (!image_url) throw new Error('photo_erreur')
+      patch.image_url = image_url
+    }
+    if (!Object.keys(patch).length) return
+    const { error } = await supabase.from('wishlist_articles').update(patch).eq('id', id)
+    if (error) throw error
+  },
+
+  async supprimerSouhait(id) {
+    const { error } = await supabase.from('wishlist_articles').delete().eq('id', id)
+    if (error) throw error
+    // Best-effort : l'image orpheline n'empêche rien de fonctionner.
+    try { await supabase.storage.from('photos').remove([`wishlist/${id}.jpg`]) } catch { /* pas grave */ }
+  },
+
+  ecouterSouhaits(rappel) {
+    const canal = supabase
+      .channel('wishlist-partagee')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wishlist_articles' }, rappel)
       .subscribe()
     return () => supabase.removeChannel(canal)
   },

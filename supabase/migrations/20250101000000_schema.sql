@@ -131,6 +131,35 @@ begin
   end if;
 end $$;
 
+-- La wishlist est devenue une vraie liste de cadeaux (wishlist_articles,
+-- ci-dessous) : les anciens souhaits stockés dans items rejoignent l'onglet
+-- À faire, sans date précise. Rejouable sans risque : plus rien n'écrit
+-- wishlist = true dans items.
+update items set wishlist = false, date_prevue = null, date_fin = null where wishlist = true;
+
+-- ------------------------------------------------------------- wishlist
+-- Vraie liste de souhaits : chaque article appartient à qui l'a ajouté
+-- (cree_par), avec une image, un prix et un lien facultatifs. L'autre peut
+-- le réserver (reserve_par) pour l'offrir ; l'app ne montre jamais cette
+-- réservation au/à la propriétaire (masquage côté client uniquement), qui
+-- marque l'article « reçu » une fois offert.
+
+create table if not exists wishlist_articles (
+  id          uuid primary key default gen_random_uuid(),
+  couple_id   uuid not null references couples on delete cascade,
+  cree_par    uuid not null default auth.uid() references profils on delete cascade,
+  titre       text not null,
+  notes       text default '',
+  lien        text,
+  prix        numeric(10, 2) check (prix is null or prix >= 0),
+  image_url   text,
+  reserve_par uuid references profils on delete set null,
+  recu        boolean not null default false,
+  cree_le     timestamptz default now()
+);
+
+create index if not exists wishlist_articles_couple_idx on wishlist_articles (couple_id, cree_le desc);
+
 -- ---------------------------------------------------------------- requêtes
 -- Demandes texte libre adressées au/à la partenaire (« peux-tu... »), qui
 -- peuvent ensuite être transformées en tâche dans l'onglet À faire.
@@ -401,6 +430,10 @@ drop trigger if exists humeurs_perso_remplir_couple on humeurs_perso;
 create trigger humeurs_perso_remplir_couple before insert on humeurs_perso
 for each row execute function remplir_couple();
 
+drop trigger if exists wishlist_articles_remplir_couple on wishlist_articles;
+create trigger wishlist_articles_remplir_couple before insert on wishlist_articles
+for each row execute function remplir_couple();
+
 drop trigger if exists boutique_articles_remplir_couple on boutique_articles;
 create trigger boutique_articles_remplir_couple before insert on boutique_articles
 for each row execute function remplir_couple();
@@ -415,6 +448,7 @@ alter table boutique_articles enable row level security;
 alter table boutique_achats   enable row level security;
 alter table points_transactions enable row level security;
 alter table humeurs_perso     enable row level security;
+alter table wishlist_articles enable row level security;
 
 drop policy if exists couples_lecture on couples;
 create policy couples_lecture on couples for select
@@ -479,6 +513,24 @@ create policy humeurs_perso_creation on humeurs_perso for insert with check (cou
 
 drop policy if exists humeurs_perso_suppression on humeurs_perso;
 create policy humeurs_perso_suppression on humeurs_perso for delete using (couple_id = mon_couple());
+
+drop policy if exists wishlist_articles_lecture on wishlist_articles;
+create policy wishlist_articles_lecture on wishlist_articles for select using (couple_id = mon_couple());
+
+drop policy if exists wishlist_articles_creation on wishlist_articles;
+create policy wishlist_articles_creation on wishlist_articles for insert
+  with check (couple_id = mon_couple() and cree_par = auth.uid());
+
+-- Les deux peuvent modifier : la/le propriétaire édite son article, l'autre
+-- pose ou retire sa réservation.
+drop policy if exists wishlist_articles_maj on wishlist_articles;
+create policy wishlist_articles_maj on wishlist_articles for update
+  using (couple_id = mon_couple())
+  with check (couple_id = mon_couple());
+
+drop policy if exists wishlist_articles_suppression on wishlist_articles;
+create policy wishlist_articles_suppression on wishlist_articles for delete
+  using (couple_id = mon_couple() and cree_par = auth.uid());
 
 drop policy if exists boutique_articles_lecture on boutique_articles;
 create policy boutique_articles_lecture on boutique_articles for select using (couple_id = mon_couple());
@@ -636,6 +688,12 @@ begin
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'capsules'
   ) then
     alter publication supabase_realtime add table capsules;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'wishlist_articles'
+  ) then
+    alter publication supabase_realtime add table wishlist_articles;
   end if;
 end $$;
 

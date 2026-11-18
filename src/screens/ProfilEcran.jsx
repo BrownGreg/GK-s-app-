@@ -80,6 +80,71 @@ function AjoutHumeur({ onValider, onAnnuler }) {
   )
 }
 
+// Comptes créés par lien email : pas de mot de passe tant qu'on n'en a
+// pas choisi un ici. Supabase ne dit pas si un mot de passe existe déjà,
+// d'où un seul formulaire qui sert à la création comme au changement.
+function PanneauMotDePasse({ onFermer, onEnregistre }) {
+  const { t } = useLangue()
+  const [motDePasse, setMotDePasse] = useState('')
+  const [confirmation, setConfirmation] = useState('')
+  const [visible, setVisible] = useState(false)
+  const [erreur, setErreur] = useState('')
+  const [envoi, setEnvoi] = useState(false)
+
+  const valider = async () => {
+    if (motDePasse.length < 6) { setErreur(t('mot_de_passe_court')); return }
+    if (motDePasse !== confirmation) { setErreur(t('mdp_differents')); return }
+    setEnvoi(true)
+    setErreur('')
+    try {
+      await store.definirMotDePasse(motDePasse)
+      onEnregistre()
+    } catch (err) {
+      setErreur(t(err.message) || t('mdp_erreur'))
+      setEnvoi(false)
+    }
+  }
+
+  return (
+    <Panneau onFermer={onFermer} labelAria={t('mdp_panneau_titre')}>
+      <h2>{t('mdp_panneau_titre')}</h2>
+      <p className="meta" style={{ marginBottom: 16 }}>{t('mdp_panneau_intro')}</p>
+
+      <div className="field">
+        <label>{t('mdp_nouveau')}</label>
+        <div className="mdp-champ">
+          <input
+            type={visible ? 'text' : 'password'}
+            autoComplete="new-password"
+            autoFocus
+            value={motDePasse}
+            onChange={(e) => { setMotDePasse(e.target.value); setErreur('') }}
+          />
+          <button type="button" onClick={() => setVisible((v) => !v)}>
+            {visible ? t('mdp_masquer') : t('mdp_afficher')}
+          </button>
+        </div>
+      </div>
+
+      <div className="field">
+        <label>{t('mdp_confirmer')}</label>
+        <input
+          type={visible ? 'text' : 'password'}
+          autoComplete="new-password"
+          value={confirmation}
+          onChange={(e) => { setConfirmation(e.target.value); setErreur('') }}
+          onKeyDown={(e) => e.key === 'Enter' && valider()}
+        />
+      </div>
+
+      {erreur && <p className="erreur-texte">{erreur}</p>}
+
+      <button className="btn" onClick={valider} disabled={envoi}>{envoi ? '…' : t('enregistrer')}</button>
+      <button className="btn btn--ghost" onClick={onFermer}>{t('annuler')}</button>
+    </Panneau>
+  )
+}
+
 export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, onPrenom, onHumeur, onMessageJour, capsules = [], onOuvrirCapsules }) {
   const { t, langue, changerLangue } = useLangue()
 
@@ -97,6 +162,8 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
   const [messageJour, setMessageJour] = useState(profil.message_jour || '')
   const [signeEnvoye, setSigneEnvoye] = useState(false)
   const [copie, setCopie] = useState(false)
+  const [mdpOuvert, setMdpOuvert] = useState(false)
+  const [mdpEnregistre, setMdpEnregistre] = useState(false)
 
   const aujourdhui = new Date().toISOString().slice(0, 10)
   const monHumeurId = profil.humeur_le === aujourdhui ? profil.humeur : null
@@ -384,6 +451,20 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
         )}
         {erreurNotif && <p className="erreur-texte">{erreurNotif}</p>}
 
+        {isRemote && (
+          <div className="reglage-ligne">
+            <div>
+              <p className="reglage-ligne__label">{t('mdp_titre')}</p>
+              <p className="reglage-ligne__desc">
+                {mdpEnregistre
+                  ? `✓ ${t('mdp_enregistre')}`
+                  : profil.email ? t('mdp_description', { email: profil.email }) : t('mdp_description_sans_email')}
+              </p>
+            </div>
+            <button className="btn--contour-petit" onClick={() => setMdpOuvert(true)}>{t('mdp_bouton')}</button>
+          </div>
+        )}
+
         <div className="reglage-ligne">
           <p className="reglage-ligne__label">{t('langue_titre')}</p>
           <div className="langue-switch" style={{ margin: 0 }}>
@@ -409,6 +490,13 @@ export default function ProfilEcran({ profil, partenaire, onFermer, onAvatar, on
           fichier={fichierARogner}
           onValider={validerRognage}
           onAnnuler={() => setFichierARogner(null)}
+        />
+      )}
+
+      {mdpOuvert && (
+        <PanneauMotDePasse
+          onFermer={() => setMdpOuvert(false)}
+          onEnregistre={() => { setMdpOuvert(false); setMdpEnregistre(true) }}
         />
       )}
 
